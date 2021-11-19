@@ -7,7 +7,7 @@ class Layer(ABC):
         pass
 
     @abstractmethod
-    def backward(self, x):
+    def backward(self, x,learning_rate):
         pass
 
     def __call__(self, x):
