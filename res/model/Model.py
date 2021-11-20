@@ -49,7 +49,8 @@ class Model:
         return history
 
     def train_step(self, x_train, y_train, learning_rate):
-        logit = self.predict(x_train)
+        logit = self.predict(
+             x_train)
 
         loss = self.loss.forward(y_train, logit)
         error = self.loss.prime(y_train, logit)
