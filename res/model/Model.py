@@ -17,30 +17,28 @@ class Model:
     def add(self, layer):
         self.layers.append(layer)
 
-
     def predict(self, x):
         for layer in self.layers:
             x = layer.forward(x)
         return x
 
-    def fit(self, x_train, y_train, epochs, learning_rate):
+    def fit(self, x_train, y_train,batch_size, epochs, learning_rate):
         samples = len(x_train)
         history = []
         for i in range(epochs):
             matrix = ConfusionMatrix(2)
-            loss = 0
+            loss = []
 
-            batch_size = 8
             for j in range(0, samples, batch_size):
                 x_batch = x_train[j:j + batch_size]
                 y_batch = y_train[j:j + batch_size]
-                y_pred, logit, loss_batch = self.train_step(x_batch, y_batch, learning_rate)
-                loss += loss_batch
-                matrix.add_batch(y_pred, y_batch)
-            loss /= samples
-            history.append(loss)
+                _, logit, loss_batch = self.train_step(x_batch, y_batch, learning_rate)
+
+                loss.append(loss_batch)
+                matrix.add_batch(logit, y_batch)
+            history.append(np.mean(loss))
             print(f'epoch {i + 1}/{epochs}\n '
-                  f'Loss:{loss:.4f}, '
+                  f'Loss:{np.mean(loss):.4f}, '
                   f'Acc:{matrix.accuracy():.4f}, '
                   f'TP:{matrix.matrix[0][0]}, '
                   f'FP:{matrix.matrix[0][1]}, '
@@ -50,7 +48,7 @@ class Model:
 
     def train_step(self, x_train, y_train, learning_rate):
         logit = self.predict(
-             x_train)
+            x_train)
 
         loss = self.loss.forward(y_train, logit)
         error = self.loss.prime(y_train, logit)

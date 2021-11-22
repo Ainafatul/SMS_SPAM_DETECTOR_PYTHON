@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from res.layer.Dense import Dense
+from res.loss.BinaryCrossEntropy import BinaryCrossEntropy
 from res.model.Model import Model
 from res.activation.Sigmoid import Sigmoid
 from res.activation.Tanh import Tanh
@@ -36,13 +37,16 @@ if __name__ == '__main__':
     y = y.reshape(y.shape[0], 1)
 
     model = Model(MeanSquaredError())
+    model.add(Dense(32, 64))
+    model.add(Tanh())
+    model.add(Dense(64, 32))
+    model.add(Tanh())
     model.add(Dense(32, 8))
     model.add(Tanh())
     model.add(Dense(8, 1))
     model.add(Sigmoid())
 
-    history = model.fit(x, y, epochs=8, learning_rate=.01)
+    history = model.fit(x, y, batch_size=32, epochs=32, learning_rate=.01)
 
     plt.plot(history)
     plt.show()
-

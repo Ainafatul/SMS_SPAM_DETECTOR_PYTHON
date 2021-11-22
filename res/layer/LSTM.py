@@ -1,4 +1,13 @@
 import numpy as np
+import pandas as pd
+from matplotlib import pyplot as plt
+
+from res.activation.Sigmoid import Sigmoid
+from res.activation.Tanh import Tanh
+from res.layer.Dense import Dense
+from res.loss.MeanSquaredError import MeanSquaredError
+from res.model.Model import Model
+from utils.TextVectorization import TextVectorization
 
 
 class LSTM:
@@ -54,24 +63,44 @@ class LSTM:
             return self.output[-1]
 
     # function to compute backward pass of LSTM
-    def backward(self, x, d_loss):
-        delta_ot = np.zeros_like(self.output[0])
+    def backward(self, d_loss):
         d_output = np.zeros_like(self.output[0])
-        f_next = np.zeros_like(self.f[0])
+        next_state = np.zeros_like(self.state[0])
+        next_f = np.zeros_like(self.f[0])
         for t in range(self.time_frame - 1, -1, -1):
             delta_output = d_loss + d_output
-            delta_state = delta_output * self.o[t] * self.tanh_prime(self.state[t])
+
+            delta_state = delta_output * self.o[t] * self.tanh_prime(self.state[t]) + next_state * next_f
             delta_state_bart = delta_state * self.i[t] * (1 - self.state_bar[t] ** 2)
             delta_it = delta_state * delta_state_bart * self.i[t] * (1 - self.i[t])
             delta_ft = delta_state * self.state[t - 1] * self.f[t] * (1 - self.f[t])
             delta_ot = delta_output * self.tanh(self.state[t]) * self.o[t] * (1 - self.o[t])
 
-            delta_x = self.Wxc
+            # print(f"delta_it: {delta_it.shape}")
+            # print(f"delta_ft: {delta_ft.shape}")
+            # print(f"delta_ot: {delta_ot.shape}")
+            # print(f"delta_state_bart: {delta_state_bart.shape}")
+            #
+            # print(f"Wxf: {self.Wxf.shape}")
+            # print(f"Wxi: {self.Wxi.shape}")
+            # print(f"Wxo: {self.Wxo.shape}")
+            # print(f"Wxc: {self.Wxc.shape}")
 
-            delta_c_next = delta_output_bart
-            d_output = np.dot(delta_output, self.Whf.T) + np.dot(delta_ot, self.Who.T) + np.dot(delta_ct, self.Whc.T)
-            f_next = self.f[t]
-            exit()
+            self.Whf += np.mean(delta_ft) * .001
+            self.Whi += np.mean(delta_it) * .001
+            self.Who += np.mean(delta_ot) * .001
+            self.Whc += np.mean(delta_state_bart) * .001
+
+            self.Wxf += np.mean(delta_ft) * .001
+            self.Wxi += np.mean(delta_it) * .001
+            self.Wxo += np.mean(delta_ot) * .001
+            self.Wxc += np.mean(delta_state_bart) * .001
+
+            next_f = self.f[t]
+            next_state = self.state[t]
+
+    def update(self, learning_rate):
+        pass
 
     def sigmoid(self, x):
         return 1 / (1 + np.exp(-x))
@@ -95,19 +124,43 @@ def mse_prime(y_pred, y_true):
 
 
 if __name__ == '__main__':
-    n = 1
-    features = 32
-    batch = 4
-    time = 12
-    x = np.random.random(size=(batch, time, features))
+    dataset = pd.read_csv('../../dataset/imdb.csv')
+    x = dataset.iloc[:, 0].values
+    y = dataset.iloc[:, -1].values
 
-    cell = LSTM(units=n, input_shape=x.shape)
+    encoder = TextVectorization(1024, 32)
+    encoder.fit(x)
 
-    h = np.random.randn(batch, n)
-    c = np.random.randn(batch, n)
+    # Input preprocessing
+    x = encoder(x)
+    # Convert Label from ['negative','positive'] to binary representation
+    y = np.array([1 if label == 'positive' else 0 for label in y])
 
-    h = cell.forward(x)
-    dloss = mse_prime(h, np.ones((batch, n)))
-    print(f"h : {h}")
-    print(f"loss : {dloss}")
-    cell.backward(x, dloss)
+    # Shuffle x and y with the same indices
+    indices = np.arange(len(x))
+    np.random.shuffle(indices)
+    x = x[indices]
+    y = y[indices]
+
+    x = x.reshape(x.shape[0], x.shape[1], 1)
+    y = y.reshape(y.shape[0], 1)
+
+    model = Model(MeanSquaredError())
+    model.add(LSTM(64, input_shape=x.shape))
+    model.add(Dense(64, 64))
+    model.add(Dense(64, 1))
+    model.add(Sigmoid())
+
+    history = model.fit(x, y, batch_size=999, epochs=128, learning_rate=.001)
+
+    plt.plot(history)
+    plt.show()
+
+    test = np.array([
+        [encoder.transform("this is a good movie")],
+    ])
+    print(f"test :{test.shape}")
+    test = np.reshape(test, (1, 32, 1))
+    print(f"test :{test.shape}")
+    result = model.predict(test)
+    print(f"Result: {np.mean(result)}")
