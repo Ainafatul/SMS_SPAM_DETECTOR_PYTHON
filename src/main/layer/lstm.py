@@ -42,7 +42,7 @@ class LSTMLayer(Layer):
 
         for t in range(self.time_step):
             x_t = x[:, t, :]
-            self.forget_gates[t] = self.sigmoid.forward(np.dot(x_t, self.Wxf) + np.dot(h, self.Whf))
+            self.forget_gates[t] = self.sigmoid.forward(np.dot(self.Wxf) + np.dot(h, self.Whf))
             self.input_gates[t] = self.sigmoid.forward(np.dot(x_t, self.Wxi) + np.dot(h, self.Whi))
             self.output_gates[t] = self.sigmoid.forward(np.dot(x_t, self.Wxo) + np.dot(h, self.Who))
 

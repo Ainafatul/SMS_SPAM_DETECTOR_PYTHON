@@ -39,18 +39,17 @@ if __name__ == '__main__':
     y = y.reshape(y.shape[0], 1)
 
     net = Sequential()
-    net.add(Dense(32, 64))
+    net.add(Dense(32, 256))
     net.add(Tanh())
-    net.add(Dense(64, 8))
+    net.add(Dense(256, 32))
     net.add(Tanh())
-    net.add(Dense(8, 1))
+    net.add(Dense(32, 1))
     net.add(Sigmoid())
 
-    loss = net.fit(x, y, epochs=128, learning_rate=0.01)
+    history = net.fit(x, y, batch_size=32, epochs=512, learning_rate=.02, decay=0.01)
 
-    plt.plot(loss)
+    plt.plot(history['loss'], label='loss', color='red')
+    plt.plot(history['accuracy'], label='accuracy', color='blue')
+    plt.legend()
     plt.show()
 
-    out = net.predict(x[:4])
-    print(y[:4])
-    print(out > .5)
