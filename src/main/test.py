@@ -41,12 +41,12 @@ if __name__ == '__main__':
     net = Sequential()
     net.add(Dense(32, 64))
     net.add(Tanh())
-    net.add(Dense(64, 32))
+    net.add(Dense(64, 8))
     net.add(Tanh())
-    net.add(Dense(32, 1))
+    net.add(Dense(8, 1))
     net.add(Sigmoid())
 
-    loss = net.fit(x, y, epochs=64, learning_rate=0.01)
+    loss = net.fit(x, y, epochs=128, learning_rate=0.01)
 
     plt.plot(loss)
     plt.show()

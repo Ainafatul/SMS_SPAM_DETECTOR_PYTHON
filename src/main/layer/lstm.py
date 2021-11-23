@@ -12,18 +12,19 @@ class LSTMLayer(Layer):
     tanh = Tanh()
     sigmoid = Sigmoid()
 
-    def __init__(self, units, input_shape=None):
+    def __init__(self, units, input_shape=None, return_sequence=False):
         self.units = units
+        self.return_sequence = return_sequence
         self.batch, self.time_step, self.features = input_shape
-        self.Wxf = np.random.randn(self.features, units)
-        self.Wxi = np.random.randn(self.features, units)
-        self.Wxc = np.random.randn(self.features, units)
-        self.Wxo = np.random.randn(self.features, units)
+        self.Wxf = np.random.randn(self.features, units) * .001
+        self.Wxi = np.random.randn(self.features, units) * .001
+        self.Wxc = np.random.randn(self.features, units) * .001
+        self.Wxo = np.random.randn(self.features, units) * .001
 
-        self.Whf = np.random.randn(units, units)
-        self.Whi = np.random.randn(units, units)
-        self.Whc = np.random.randn(units, units)
-        self.Who = np.random.randn(units, units)
+        self.Whf = np.random.randn(units, units) * .001
+        self.Whi = np.random.randn(units, units) * .001
+        self.Whc = np.random.randn(units, units) * .001
+        self.Who = np.random.randn(units, units) * .001
 
         self.states = np.zeros((self.batch, self.time_step, self.units))
         self.cells = np.zeros((self.batch, self.time_step, self.units))
@@ -33,7 +34,7 @@ class LSTMLayer(Layer):
         self.output_gates = np.zeros((self.time_step, self.batch, self.units))
         self.cell_bar = np.zeros((self.time_step, self.batch, self.units))
 
-    def forward(self, x, return_sequence=False):
+    def forward(self, x):
         self.x = x
 
         h = np.zeros((self.batch, self.units))
@@ -53,7 +54,7 @@ class LSTMLayer(Layer):
             c = self.cells[:, t, :]
             h = self.states[:, t, :]
 
-        if return_sequence:
+        if self.return_sequence:
             return self.states
         return h
 
@@ -109,6 +110,8 @@ if __name__ == '__main__':
     y = y.reshape(y.shape[0], 1)
 
     net = Sequential()
-    net.add(LSTMLayer(units=2, input_shape=(1, 32, 1)))
+    net.add(LSTMLayer(units=8, input_shape=(1, 32, 1), return_sequence=False))
+
+    print(net.predict(np.array([x[:1]])).shape)
 
     net.fit(x, y, epochs=8, learning_rate=0.01)
