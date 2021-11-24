@@ -33,9 +33,9 @@ if __name__ == '__main__':
     y_train = y_train[indices]
 
     model = Sequential()
-    model.add(Dense(64, input_shape=(32,)))
+    model.add(Dense(512, input_shape=(32,)))
     model.add(Tanh())
-    model.add(Dense(32))
+    model.add(Dense(128))
     model.add(Tanh())
     model.add(Dense(1))
     model.add(Sigmoid())

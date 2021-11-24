@@ -21,10 +21,8 @@ if __name__ == '__main__':
     x = encoder(x)
     y = np.array([1 if label == 'positive' else 0 for label in y])
 
-    x = x.reshape(x.shape[0], x.shape[1], 1)
+    x = x.reshape(x.shape[0], x.shape[1])
     y = y.reshape(y.shape[0], 1)
-
-    # x = x/1024
 
     train = .8
     x_train, y_train = x[:int(len(x) * train)], y[:int(len(y) * train)]
@@ -36,12 +34,16 @@ if __name__ == '__main__':
     y_train = y_train[indices]
 
     model = Sequential()
-    model.add(LSTMLayer(32, input_shape=(32, 1), return_sequence=True))
-    model.add(LSTMLayer(8, return_sequence=False))
-    model.add(Dense(1))
+    model.add(LSTMLayer(32, input_shape=(32, 8), return_sequence=True))
+    model.add(LSTMLayer(16, input_shape=(16, 32), return_sequence=False))
+    model.add(Dense(128, input_shape=(32,)))
+    model.add(Tanh())
+    model.add(Dense(64, input_shape=(128,)))
+    model.add(Tanh())
+    model.add(Dense(1, input_shape=(64,)))
     model.add(Sigmoid())
 
-    model.compile(loss=BinaryCrossEntropy(), lr=.001)
+    model.compile(loss=BinaryCrossEntropy(), lr=.01)
 
     history = model.fit((x, y), val=(x_val, y_val), batch_size=32, epochs=512, decay=0.0)
 

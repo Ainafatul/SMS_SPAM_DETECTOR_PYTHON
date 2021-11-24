@@ -79,8 +79,4 @@ class Sequential:
         self.loss = loss
         self.learning_rate = lr
 
-        for i, layer in enumerate(self.layers):
-            if i != 0:
-                layer.compile(self.layers[i - 1].output_shape)
-            else:
-                layer.compile()
+

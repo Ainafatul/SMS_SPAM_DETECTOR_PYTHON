@@ -15,8 +15,19 @@ class LSTMLayer(Layer):
     input = None
     input_shape = None
     output_shape = None
-    tanh = Tanh()
-    sigmoid = Sigmoid()
+
+    def sigmoid(self, x):
+        x = x.clip(-700, 700)
+        return 1 / (1 + np.exp(-x))
+
+    def sigmoid_derivative(self, x):
+        return x * (1 - x)
+
+    def tanh_derivative(self, x):
+        return 1 - (np.tanh(x)) ** 2
+
+    def tanh(self, x):
+        return np.tanh(x)
 
     def __init__(self, units, input_shape=None, return_sequence=False):
         if input_shape is not None:
@@ -24,18 +35,18 @@ class LSTMLayer(Layer):
         self.units = units
         self.return_sequence = return_sequence
 
-    def forward(self, x):
-        self.batch_size = x.shape[0]
+    def _forward(self, x):
+        self.batch_size, self.time_step, self.features = x.shape
 
         self.output = np.zeros((self.batch_size, self.time_step, self.units))
         self.state = np.zeros((self.batch_size, self.time_step, self.units))
 
-        self.f = np.zeros((self.time_step, self.batch_size, self.units))
-        self.i = np.zeros((self.time_step, self.batch_size, self.units))
-        self.o = np.zeros((self.time_step, self.batch_size, self.units))
-        self.a = np.zeros((self.time_step, self.batch_size, self.units))
+        self.f = np.zeros((self.batch_size, self.time_step, self.units))
+        self.i = np.zeros((self.batch_size, self.time_step, self.units))
+        self.o = np.zeros((self.batch_size, self.time_step, self.units))
+        self.a = np.zeros((self.batch_size, self.time_step, self.units))
 
-        self.X = np.zeros((self.time_step, self.batch_size, self.features + self.units))
+        self.X = np.zeros((self.batch_size, self.time_step, self.features + self.units))
         self.x = x
 
         prev_state = np.zeros((self.batch_size, self.units))
@@ -43,15 +54,15 @@ class LSTMLayer(Layer):
 
         for t in range(self.time_step):
             x_t = np.column_stack((prev_output, x[:, t, :]))
-            self.X[t] = x_t
+            self.X[:, t, :] = x_t
 
-            self.a[t] = self.tanh(x_t @ self.Wa + self.Ba)
-            self.i[t] = self.sigmoid(x_t @ self.Wi + self.Bi)
-            self.f[t] = self.sigmoid(x_t @ self.Wf + self.Bf)
-            self.o[t] = self.sigmoid(x_t @ self.Wo + self.Bo)
+            self.a[:, t] = self.tanh(np.dot(x_t, self.Wa) + self.Ba)
+            self.i[:, t] = self.sigmoid(np.dot(x_t, self.Wi) + self.Bi)
+            self.f[:, t] = self.sigmoid(np.dot(x_t, self.Wf) + self.Bf)
+            self.o[:, t] = self.sigmoid(np.dot(x_t, self.Wo) + self.Bo)
 
-            self.state[:, t, :] = self.f[t] * prev_state + self.i[t] * self.a[t]
-            self.output[:, t, :] = self.o[t] * self.tanh(self.state[:, t, :])
+            self.state[:, t, :] = (self.f[:, t] * prev_state) + (self.i[:, t, :] * self.a[:, t])
+            self.output[:, t, :] = self.o[:, t] * self.tanh(self.state[:, t])
 
             prev_state = self.state[:, t, :]
             prev_output = self.output[:, t, :]
@@ -60,9 +71,7 @@ class LSTMLayer(Layer):
             return self.output
         return self.output.mean(axis=1)
 
-    def backward(self, d_loss, learning_rate):
-        print(f"LSTM : {self.input_shape} -> {self.output_shape}")
-        print(f"LSTM : {d_loss.shape}")
+    def _backward(self, d_loss, learning_rate):
         delta_output_next = np.zeros((self.batch_size, self.units))
         delta_state_next = np.zeros((self.batch_size, self.units))
 
@@ -83,38 +92,38 @@ class LSTMLayer(Layer):
 
             delta_out = d_loss + delta_output_next
 
-            delta_state = delta_out * self.o[t] * self.tanh(self.state[:, t, :], derivative=True) + delta_state_next
-            delta_a = delta_state * self.i[t] * self.tanh(self.a[t], derivative=True)
-            delta_i = delta_state * self.a[t] * self.sigmoid(self.i[t], derivative=True)
-            delta_f = delta_state * prev_state * self.sigmoid(self.f[t], derivative=True)
-            delta_o = delta_out * self.tanh(self.state[:, t, :]) * self.sigmoid(self.o[t], derivative=True)
+            delta_state = delta_out * self.o[:, t, :] * self.tanh_derivative(self.state[:, t, :]) + delta_state_next
+            delta_a = delta_state * self.i[:, t, :] * self.tanh_derivative(self.a[:, t, :])
+            delta_i = delta_state * self.a[:, t, :] * self.sigmoid_derivative(self.i[:, t, :])
+            delta_f = delta_state * prev_state * self.sigmoid_derivative(self.f[:, t, :])
+            delta_o = delta_out * self.tanh(self.state[:, t, :]) * self.sigmoid_derivative(self.o[:, t, :])
 
-            dWa += self.X[t].T @ delta_a
-            dWi += self.X[t].T @ delta_i
-            dWf += self.X[t].T @ delta_f
-            dWo += self.X[t].T @ delta_o
+            dWa -= self.X[:, t].T.dot(delta_a)
+            dWi -= self.X[:, t].T.dot(delta_i)
+            dWf -= self.X[:, t].T.dot(delta_f)
+            dWo -= self.X[:, t].T.dot(delta_o)
 
-            dBa += delta_a.mean(axis=0)
-            dBi += delta_i.mean(axis=0)
-            dBf += delta_f.mean(axis=0)
-            dBo += delta_o.mean(axis=0)
+            dBa -= delta_a.mean(axis=0, keepdims=True)
+            dBi -= delta_i.mean(axis=0, keepdims=True)
+            dBf -= delta_f.mean(axis=0, keepdims=True)
+            dBo -= delta_o.mean(axis=0, keepdims=True)
 
-            dX = delta_a @ self.Wa.T + delta_i @ self.Wi.T + delta_f @ self.Wf.T + delta_o @ self.Wo.T
+            dX = np.dot(delta_a , self.Wa.T) + np.dot(delta_i , self.Wi.T) + np.dot(delta_f , self.Wf.T) + np.dot(delta_o , self.Wo.T)
 
             delta_output_next = dX[:, :self.units]
-            delta_state_next = delta_state * self.f[t]
+            delta_state_next = delta_state * self.f[:, t, :]
 
-        clip = lambda x: x
+        clip = lambda x: np.nan_to_num(np.sum(x / self.batch_size, axis=0, keepdims=True))
 
-        self.Wa -= learning_rate * clip(dWa)
-        self.Wi -= learning_rate * clip(dWi)
-        self.Wf -= learning_rate * clip(dWf)
-        self.Wo -= learning_rate * clip(dWo)
+        self.Wa += learning_rate * clip(dWa)
+        self.Wi += learning_rate * clip(dWi)
+        self.Wf += learning_rate * clip(dWf)
+        self.Wo += learning_rate * clip(dWo)
 
-        self.Ba -= learning_rate * clip(dBa)
-        self.Bi -= learning_rate * clip(dBi)
-        self.Bf -= learning_rate * clip(dBf)
-        self.Bo -= learning_rate * clip(dBo)
+        self.Ba += learning_rate * dBa
+        self.Bi += learning_rate * dBi
+        self.Bf += learning_rate * dBf
+        self.Bo += learning_rate * dBo
 
         return delta_output_next
 
@@ -143,32 +152,46 @@ class LSTMLayer(Layer):
 
 
 if __name__ == '__main__':
-    time_step = 32
-    feature = 4
+    time_step = 3
+    feature = 1
 
-    x = np.ones((2, time_step, feature))
+    layers = [
+        LSTMLayer(32, input_shape=(time_step, feature), return_sequence=False),
+        Dense(8),
+        Sigmoid()
+    ]
 
-    layer_1 = LSTMLayer(16, input_shape=(time_step, feature), return_sequence=True)
-    layer_2 = LSTMLayer(8, return_sequence=False)
-    layer_3 = Dense(1)
+    for i, layer in enumerate(layers):
+        if i != 0:
+            layer.compile(input_shape=layers[i - 1].output_shape)
+            continue
+        layer.compile()
 
-    layer_1.compile()
-    layer_2.compile(layer_1.output_shape)
-    layer_3.compile(layer_2.output_shape)
+    loss = BinaryCrossEntropy()
 
-    losses = BinaryCrossEntropy()
+    errors = []
 
-    for i in range(32):
-        x_1 = layer_1.forward(x)
-        x_2 = layer_2.forward(x_1)
-        x_3 = layer_3.forward(x_2)
+    x = np.array([[[1], [2], [1]], [[1], [2], [4]], [[3], [4], [1]], [[4], [4], [1]]])
+    y = np.array([[1], [0], [0], [1]])
 
-        d_loss = losses(x_3, np.ones((2, 1)), derivative=True)
-        print(f'd_loss shape: {d_loss.shape}')
+    for i in range(10240):
+        p = x
+        for layer in layers:
+            p = layer.forward(p)
 
-        d3 = layer_3.backward(d_loss, 0.1)
-        print(f'd3 shape: {d3.shape}')
-        d2 = layer_2.backward(d3, 0.1)
-        print(f'd2 shape: {d2.shape}')
-        d1 = layer_1.backward(d2, 0.1)
-        print(f'd1 shape: {d1.shape}')
+        error = loss(p, y, derivative=True)
+
+        for layer in reversed(layers):
+            error = layer.backward(error, 0.01)
+
+        err = loss(p, y)
+
+        print(f'Epoch {i}, error={err:0.4}')
+        errors.append(err)
+
+    for layer in layers:
+        x = layer.forward(x)
+
+    plt.plot(errors, label='error')
+    plt.legend()
+    plt.show()

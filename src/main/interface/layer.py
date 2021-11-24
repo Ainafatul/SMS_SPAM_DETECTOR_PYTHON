@@ -1,5 +1,8 @@
 import abc
+import time
 from abc import ABC
+
+from utils import default_return
 
 
 class Layer(ABC):
@@ -20,10 +23,10 @@ class Layer(ABC):
         raise NotImplementedError
 
     def forward(self, x):
-        raise NotImplementedError
+        return x
 
     def backward(self, output_error, learning_rate):
-        raise NotImplementedError
+        return default_return(output_error)
 
-    def compile(self,input_shape):
+    def compile(self, input_shape):
         raise NotImplementedError
