@@ -35,16 +35,12 @@ if __name__ == '__main__':
 
 
     model = Sequential()
-    model.add(LSTMLayer(8, input_shape=(32, 1)))
-    model.add(Tanh())
-    model.add(Dense(32))
-    model.add(Tanh())
-    model.add(Dense(1))
-    model.add(Sigmoid())
+    model.add(LSTMLayer(8, input_shape=(32, 1),return_sequence=True))
+    model.add(LSTMLayer(1))
 
     model.compile(loss=BinaryCrossEntropy(), lr=.01)
 
-    history = model.fit((x_train, y_train), val=(x_val, y_val), batch_size=32, epochs=512, decay=0.001)
+    history = model.fit((x_train, y_train), val=(x_val, y_val), batch_size=64, epochs=512, decay=0.0)
 
     plt.plot(history['loss'], label='loss', color='red')
     plt.plot(history['val_loss'], label='val_loss', color='green', linestyle='--')

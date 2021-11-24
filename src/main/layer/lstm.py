@@ -59,34 +59,46 @@ class LSTMLayer(Layer):
 
     def backward(self, d_loss, learning_rate):
         delta_out_next = np.zeros_like(self.out[:, 0])
-        d_out = np.zeros_like(self.out[:, 0])
-        f_next = np.zeros_like(self.f[0])
+        delta_state_next = np.zeros_like(self.state[:, 0])
+
+        dWa = np.zeros((self.time_step, *self.Wa.shape))
+        dWi = np.zeros((self.time_step, *self.Wi.shape))
+        dWf = np.zeros((self.time_step, *self.Wf.shape))
+        dWo = np.zeros((self.time_step, *self.Wo.shape))
+
+        dUa = np.zeros((self.time_step, *self.Ua.shape))
+        dUi = np.zeros((self.time_step, *self.Ui.shape))
+        dUf = np.zeros((self.time_step, *self.Uf.shape))
+        dUo = np.zeros((self.time_step, *self.Uo.shape))
+
         for t in reversed(range(self.time_step)):
-            delta_out = d_loss + d_out
+            delta_out = d_loss + delta_out_next
 
-            delta_state = delta_out * self.o[t] * (1 - self.out[:, t, :] ** 2) + delta_out_next * f_next
-            delta_a = delta_state * self.i[t] * (1 - self.a[t] ** 2)
-            delta_i = delta_state * self.a[t] * self.i[t] * (1 - self.i[t])
-            delta_f = delta_state * self.state[:, t - 1, :] * self.f[t] * (1 - self.f[t])
-            delta_o = delta_out * self.tanh(self.state[:, t, :]) * self.o[t] * (1 - self.o[t])
+            delta_state = delta_out * self.o[t] * self.tanh(self.state[:, t, :], derivative=True) + delta_state_next
+            delta_a = delta_state * self.i[t] * self.tanh(self.a[t], derivative=True)
+            delta_i = delta_state * self.a[t] * self.sigmoid(self.i[t], derivative=True)
+            delta_f = delta_state * self.state[:, t - 1, :] * self.sigmoid(self.f[t], derivative=True)
+            delta_o = delta_out * self.tanh(self.state[:, t, :]) * self.sigmoid(self.o[t], derivative=True)
 
-            f = lambda x: np.clip(x, -1, 1)
+            dWa[t] = np.dot(self.x[:, t, :].T, delta_a)
+            dWi[t] = np.dot(self.x[:, t, :].T, delta_i)
+            dWf[t] = np.dot(self.x[:, t, :].T, delta_f)
+            dWo[t] = np.dot(self.x[:, t, :].T, delta_o)
 
-            self.Wa -= learning_rate * f(np.dot(self.x[:, t, :].T, delta_a))
-            self.Ua -= learning_rate * f(np.dot(delta_out_next.T, delta_a))
-            self.Wf -= learning_rate * f(np.dot(self.x[:, t, :].T, delta_f))
-            self.Uf -= learning_rate * f(np.dot(delta_out_next.T, delta_f))
-            self.Wi -= learning_rate * f(np.dot(self.x[:, t, :].T, delta_i))
-            self.Ui -= learning_rate * f(np.dot(delta_out_next.T, delta_i))
-            self.Wo -= learning_rate * f(np.dot(self.x[:, t, :].T, delta_o))
-            self.Uo -= learning_rate * f(np.dot(delta_out_next.T, delta_o))
+            dUa[t] = np.dot(delta_out_next.T, delta_a)
+            dUi[t] = np.dot(delta_out_next.T, delta_i)
+            dUf[t] = np.dot(delta_out_next.T, delta_f)
+            dUo[t] = np.dot(delta_out_next.T, delta_o)
 
-            f_next = self.f[t]
-            delta_out_next = delta_out
-            d_out = np.dot(delta_a, self.Ua.T) + np.dot(delta_i, self.Ui.T) + np.dot(delta_f, self.Uf.T) + np.dot(delta_o, self.Uo.T)
+            delta_out_next = np.dot(delta_a, self.Ua.T) + np.dot(delta_i, self.Ui.T) + np.dot(delta_f, self.Uf.T) + np.dot(delta_o, self.Uo.T)
+            delta_state_next = delta_state * self.f[t]
 
-        delta_input = np.dot(delta_a, self.Wa.T) + np.dot(delta_f, self.Wf.T) + np.dot(delta_i, self.Wi.T) + np.dot(delta_o, self.Wo.T)
-        return delta_input
+        self.Wa -= learning_rate * np.sum(dWa, axis=0)
+        self.Wi -= learning_rate * np.sum(dWi, axis=0)
+        self.Wf -= learning_rate * np.sum(dWf, axis=0)
+        self.Wo -= learning_rate * np.sum(dWo, axis=0)
+
+        return delta_out_next
 
     def compile(self, input_shape=None):
         if input_shape is not None:
