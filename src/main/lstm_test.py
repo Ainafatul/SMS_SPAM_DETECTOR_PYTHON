@@ -24,6 +24,8 @@ if __name__ == '__main__':
     x = x.reshape(x.shape[0], x.shape[1], 1)
     y = y.reshape(y.shape[0], 1)
 
+    # x = x/1024
+
     train = .8
     x_train, y_train = x[:int(len(x) * train)], y[:int(len(y) * train)]
     x_val, y_val = x[int(len(x) * train):], y[int(len(y) * train):]
@@ -33,14 +35,15 @@ if __name__ == '__main__':
     x_train = x_train[indices]
     y_train = y_train[indices]
 
-
     model = Sequential()
-    model.add(LSTMLayer(8, input_shape=(32, 1),return_sequence=True))
-    model.add(LSTMLayer(1))
+    model.add(LSTMLayer(32, input_shape=(32, 1), return_sequence=True))
+    model.add(LSTMLayer(8, return_sequence=False))
+    model.add(Dense(1))
+    model.add(Sigmoid())
 
-    model.compile(loss=BinaryCrossEntropy(), lr=.01)
+    model.compile(loss=BinaryCrossEntropy(), lr=.001)
 
-    history = model.fit((x_train, y_train), val=(x_val, y_val), batch_size=64, epochs=512, decay=0.0)
+    history = model.fit((x, y), val=(x_val, y_val), batch_size=32, epochs=512, decay=0.0)
 
     plt.plot(history['loss'], label='loss', color='red')
     plt.plot(history['val_loss'], label='val_loss', color='green', linestyle='--')

@@ -15,13 +15,6 @@ class Dense(Layer):
         self.weights = None
         self.bias = None
 
-    def compile(self, input_shape=None):
-        if input_shape is not None:
-            self.input_shape = input_shape[-1]
-
-        self.weights = np.random.randn(self.input_shape, self.output_shape[0])
-        self.bias = np.random.randn(self.output_shape[0])
-
     def forward(self, x):
         self.input = x
         return np.dot(self.input, self.weights) + self.bias
@@ -34,6 +27,15 @@ class Dense(Layer):
         self.weights -= gradient_clip(weights_error, 1) * learning_rate
         self.bias -= np.sum(output_error) * learning_rate
         return input_error
+
+    def compile(self, input_shape=None):
+        if input_shape is not None:
+            self.input_shape = input_shape[-1]
+
+        self.weights = np.random.randn(self.input_shape, self.output_shape[0])
+        self.bias = np.random.randn(self.output_shape[0])
+
+        print(f"Dense : {self.input_shape}->{self.output_shape}")
 
 
 def gradient_clip(gradient, clip_norm):

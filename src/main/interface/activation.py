@@ -6,7 +6,7 @@ class Activation(Layer):
     input_shape = None
     output_shape = None
 
-    def __call__(self, x,derivative=False):
+    def __call__(self, x, derivative=False):
         if derivative:
             return self.backward_activation(x)
         return self.forward_activation(x)

@@ -14,3 +14,6 @@ class BinaryConfusionMatrix:
     def get_accuracy(self):
         return np.sum(np.diag(self.matrix)) / np.sum(self.matrix)
 
+    def reset(self):
+        self.matrix = np.zeros((2, 2))
+
