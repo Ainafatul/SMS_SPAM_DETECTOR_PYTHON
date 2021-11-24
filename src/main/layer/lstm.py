@@ -1,7 +1,10 @@
 import numpy as np
 import pandas as pd
+from matplotlib import pyplot as plt
 
 from Sequential import Sequential
+from binary_cross_entropy import BinaryCrossEntropy
+from dense import Dense
 from layer import Layer
 from sigmoid import Sigmoid
 from tanh import Tanh
@@ -9,109 +12,131 @@ from text_vetorization import TextVectorization
 
 
 class LSTMLayer(Layer):
+    input = None
+    input_shape = None
+    output_shape = None
     tanh = Tanh()
     sigmoid = Sigmoid()
 
     def __init__(self, units, input_shape=None, return_sequence=False):
+        if input_shape is not None:
+            self.input_shape = input_shape
         self.units = units
         self.return_sequence = return_sequence
-        self.batch, self.time_step, self.features = input_shape
-        self.Wxf = np.random.randn(self.features, units) * .001
-        self.Wxi = np.random.randn(self.features, units) * .001
-        self.Wxc = np.random.randn(self.features, units) * .001
-        self.Wxo = np.random.randn(self.features, units) * .001
-
-        self.Whf = np.random.randn(units, units) * .001
-        self.Whi = np.random.randn(units, units) * .001
-        self.Whc = np.random.randn(units, units) * .001
-        self.Who = np.random.randn(units, units) * .001
-
-        self.states = np.zeros((self.batch, self.time_step, self.units))
-        self.cells = np.zeros((self.batch, self.time_step, self.units))
-
-        self.forget_gates = np.zeros((self.time_step, self.batch, self.units))
-        self.input_gates = np.zeros((self.time_step, self.batch, self.units))
-        self.output_gates = np.zeros((self.time_step, self.batch, self.units))
-        self.cell_bar = np.zeros((self.time_step, self.batch, self.units))
 
     def forward(self, x):
+        batch_size = x.shape[0]
+
+        self.out = np.zeros((batch_size, self.time_step, self.units))
+        self.state = np.zeros((batch_size, self.time_step, self.units))
+
+        self.f = np.zeros((self.time_step, batch_size, self.units))
+        self.i = np.zeros((self.time_step, batch_size, self.units))
+        self.o = np.zeros((self.time_step, batch_size, self.units))
+        self.a = np.zeros((self.time_step, batch_size, self.units))
+
         self.x = x
 
-        h = np.zeros((self.batch, self.units))
-        c = np.zeros((self.batch, self.units))
+        out = np.zeros((batch_size, self.units))
+        prev_state = np.zeros((batch_size, self.units))
 
         for t in range(self.time_step):
             x_t = x[:, t, :]
-            self.forget_gates[t] = self.sigmoid.forward(np.dot(self.Wxf) + np.dot(h, self.Whf))
-            self.input_gates[t] = self.sigmoid.forward(np.dot(x_t, self.Wxi) + np.dot(h, self.Whi))
-            self.output_gates[t] = self.sigmoid.forward(np.dot(x_t, self.Wxo) + np.dot(h, self.Who))
+            self.a[t] = self.tanh(np.dot(x_t, self.Wa) + np.dot(out, self.Ua))
+            self.i[t] = self.sigmoid(np.dot(x_t, self.Wi) + np.dot(out, self.Ui))
+            self.f[t] = self.sigmoid(np.dot(x_t, self.Wf) + np.dot(out, self.Uf))
+            self.o[t] = self.sigmoid(np.dot(x_t, self.Wo) + np.dot(out, self.Uo))
 
-            self.cell_bar[t] = self.tanh.forward(np.dot(x_t, self.Wxc) + np.dot(h, self.Whc))
+            self.state[:, t, :] = self.a[t] * self.i[t] * self.f[t] * prev_state
+            self.out[:, t, :] = self.tanh(self.state[:, t, :]) * self.o[t]
 
-            self.cells[:, t, :] = self.forget_gates[t] * c + self.input_gates[t] * self.cell_bar[t]
-            self.states[:, t, :] = self.output_gates[t] * self.tanh.forward(c)
-
-            c = self.cells[:, t, :]
-            h = self.states[:, t, :]
+            prev_state = self.state[:, t, :]
+            out = self.out[:, t, :]
 
         if self.return_sequence:
-            return self.states
-        return h
+            return self.out
+        return out
 
     def backward(self, d_loss, learning_rate):
-        d_output = np.zeros_like(self.states[0])
-        next_state = np.zeros_like(self.states[0])
-        next_forget_gate = np.zeros_like(self.forget_gates[0])
+        delta_out_next = np.zeros_like(self.out[:, 0])
+        d_out = np.zeros_like(self.out[:, 0])
+        f_next = np.zeros_like(self.f[0])
         for t in reversed(range(self.time_step)):
-            delta_output = d_loss + d_output
+            delta_out = d_loss + d_out
 
-            delta_state = delta_output * self.output_gates[t] * self.tanh.backward_activation(self.states[:, t, :]) + next_state + next_forget_gate
-            delta_cell = delta_state * self.input_gates[t] * (1 - self.cell_bar[t] ** 2)
-            delta_it = delta_state * self.cell_bar[t] * self.input_gates[t] * (1 - self.input_gates[t])
-            delta_ft = delta_state * self.cells[:, t - 1, :] * self.forget_gates[t] * (1 - self.forget_gates[t])
-            delta_ot = delta_output * self.tanh.forward(self.states[:, t, :]) * self.output_gates[t] * (1 - self.output_gates[t])
+            delta_state = delta_out * self.o[t] * (1 - self.out[:, t, :] ** 2) + delta_out_next * f_next
+            delta_a = delta_state * self.i[t] * (1 - self.a[t] ** 2)
+            delta_i = delta_state * self.a[t] * self.i[t] * (1 - self.i[t])
+            delta_f = delta_state * self.state[:, t - 1, :] * self.f[t] * (1 - self.f[t])
+            delta_o = delta_out * self.tanh(self.state[:, t, :]) * self.o[t] * (1 - self.o[t])
 
-            next_forget_gate = self.forget_gates[t]
-            next_state = self.states[:, t, :]
+            f = lambda x: np.clip(x, -1, 1)
 
-            delta_ft = np.clip(delta_ft, -1, 1)
-            delta_it = np.clip(delta_it, -1, 1)
-            delta_ot = np.clip(delta_ot, -1, 1)
-            delta_cell = np.clip(delta_cell, -1, 1)
+            self.Wa -= learning_rate * f(np.dot(self.x[:, t, :].T, delta_a))
+            self.Ua -= learning_rate * f(np.dot(delta_out_next.T, delta_a))
+            self.Wf -= learning_rate * f(np.dot(self.x[:, t, :].T, delta_f))
+            self.Uf -= learning_rate * f(np.dot(delta_out_next.T, delta_f))
+            self.Wi -= learning_rate * f(np.dot(self.x[:, t, :].T, delta_i))
+            self.Ui -= learning_rate * f(np.dot(delta_out_next.T, delta_i))
+            self.Wo -= learning_rate * f(np.dot(self.x[:, t, :].T, delta_o))
+            self.Uo -= learning_rate * f(np.dot(delta_out_next.T, delta_o))
 
-            self.Wxf -= learning_rate * delta_ft.mean(axis=0)
-            self.Wxi -= learning_rate * delta_it.mean(axis=0)
-            self.Wxo -= learning_rate * delta_ot.mean(axis=0)
-            self.Wxc -= learning_rate * delta_cell.mean(axis=0)
+            f_next = self.f[t]
+            delta_out_next = delta_out
+            d_out = np.dot(delta_a, self.Ua.T) + np.dot(delta_i, self.Ui.T) + np.dot(delta_f, self.Uf.T) + np.dot(delta_o, self.Uo.T)
 
-            self.Whf -= learning_rate * delta_ft.mean(axis=0)
-            self.Whi -= learning_rate * delta_it.mean(axis=0)
-            self.Who -= learning_rate * delta_ot.mean(axis=0)
-            self.Whc -= learning_rate * delta_cell.mean(axis=0)
+        delta_input = np.dot(delta_a, self.Wa.T) + np.dot(delta_f, self.Wf.T) + np.dot(delta_i, self.Wi.T) + np.dot(delta_o, self.Wo.T)
+        return delta_input
+
+    def compile(self, input_shape=None):
+        if input_shape is not None:
+            self.input_shape = input_shape
+
+        self.time_step, self.features = self.input_shape
+
+        if self.return_sequence:
+            self.output_shape = (self.time_step, self.units,)
+        else:
+            self.output_shape = (self.units,)
+
+        self.Wf = np.random.randn(self.features, self.units) * .001
+        self.Wi = np.random.randn(self.features, self.units) * .001
+        self.Wa = np.random.randn(self.features, self.units) * .001
+        self.Wo = np.random.randn(self.features, self.units) * .001
+
+        self.Uf = np.random.randn(self.units, self.units) * .001
+        self.Ui = np.random.randn(self.units, self.units) * .001
+        self.Ua = np.random.randn(self.units, self.units) * .001
+        self.Uo = np.random.randn(self.units, self.units) * .001
 
 
 if __name__ == '__main__':
-    dataset = pd.read_csv('../../res/imdb.csv')
-    x = dataset.iloc[:, 0].values
-    y = dataset.iloc[:, -1].values
+    time_step = 32
+    feature = 4
 
-    encoder = TextVectorization(1024, 32)
-    encoder.fit(x)
+    x = np.ones((2, time_step, feature))
 
-    x = encoder(x)
-    y = np.array([1 if label == 'positive' else 0 for label in y])
+    layer_1 = LSTMLayer(16, input_shape=(time_step, feature), return_sequence=True)
+    layer_2 = LSTMLayer(8, return_sequence=False)
+    layer_3 = Dense(1)
 
-    indices = np.arange(len(x))
-    np.random.shuffle(indices)
-    x = x[indices]
-    y = y[indices]
+    layer_1.compile()
+    layer_2.compile(layer_1.output_shape)
+    layer_3.compile(layer_2.output_shape)
 
-    x = x.reshape(x.shape[0], x.shape[1], 1)
-    y = y.reshape(y.shape[0], 1)
+    losses = BinaryCrossEntropy()
 
-    net = Sequential()
-    net.add(LSTMLayer(units=8, input_shape=(1, 32, 1), return_sequence=False))
+    for i in range(32):
+        x_1 = layer_1.forward(x)
+        x_2 = layer_2.forward(x_1)
+        x_3 = layer_3.forward(x_2)
 
-    print(net.predict(np.array([x[:1]])).shape)
+        d_loss = losses(x_3, derivative=True)
+        print(f'd_loss shape: {d_loss.shape}')
 
-    net.fit(x, y, epochs=8, learning_rate=0.01)
+        d3 = layer_3.backward(d_loss, 0.1)
+        print(f'd3 shape: {d3.shape}')
+        d2 = layer_2.backward(d3, 0.1)
+        print(f'd2 shape: {d2.shape}')
+        d1 = layer_1.backward(d2, 0.1)
+        print(f'd1 shape: {d1.shape}')

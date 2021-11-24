@@ -8,4 +8,4 @@ class Tanh(Activation):
         return np.tanh(x)
 
     def backward_activation(self, x):
-        return (1 - np.tanh(x) ** 2)
+        return 1 - np.tanh(x) ** 2

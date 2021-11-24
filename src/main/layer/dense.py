@@ -3,24 +3,38 @@ import numpy as np
 
 
 class Dense(Layer):
-    def __init__(self, input_size, output_size):
-        super().__init__()
-        self.weights = np.random.rand(input_size, output_size) - 0.5
-        self.bias = np.zeros(output_size) - 0.5
+    input = None
+    input_shape = None
+    output_shape = None
+
+    def __init__(self, units, input_shape=None):
+        if input_shape is not None:
+            self.input_shape = input_shape[-1]
+        self.output_shape = (units,)
+
+        self.weights = None
+        self.bias = None
+
+    def compile(self, input_shape=None):
+        if input_shape is not None:
+            self.input_shape = input_shape[-1]
+
+        self.weights = np.random.randn(self.input_shape, self.output_shape[0])
+        self.bias = np.random.randn(self.output_shape[0])
 
     def forward(self, x):
         self.input = x
-        self.output = np.dot(self.input, self.weights) + self.bias
-        return self.output
+        return np.dot(self.input, self.weights) + self.bias
 
     def backward(self, output_error, learning_rate):
-        batch_size = self.input.shape[0]
         input_error = np.dot(output_error, self.weights.T)
 
-        weights_error = (1 / batch_size) * np.dot(self.input.T, output_error) + (.7/batch_size) * self.weights
+        weights_error = np.dot(self.input.T, output_error)
 
-        self.weights -= weights_error * learning_rate
-        self.bias -= np.sum(output_error, axis=0) * learning_rate
+        self.weights -= gradient_clip(weights_error, 1) * learning_rate
+        self.bias -= np.sum(output_error) * learning_rate
         return input_error
 
 
+def gradient_clip(gradient, clip_norm):
+    return np.clip(gradient, -clip_norm, clip_norm)

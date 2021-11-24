@@ -1,28 +1,9 @@
 import numpy as np
 
-from binary_cross_entropy import BinaryCrossEntropy
-from mean_squared_error import MeanSquaredError
-
-
-class BinaryConfusionMatrix:
-
-    def __init__(self, threshold=0.5):
-        self.matrix = np.zeros((2, 2))
-        self.threshold = threshold
-
-    def update(self, y_pred, y_true):
-        for y_p, y_t in zip(y_pred, y_true):
-            self.matrix[int(y_p > self.threshold)][y_t] += 1
-
-    def get_accuracy(self):
-        return np.sum(np.diag(self.matrix)) / np.sum(self.matrix)
-
-    def print_matrix(self):
-        print(f'TP : {self.matrix[1, 1]}, TN : {self.matrix[0, 0]}, FP : {self.matrix[1, 0]}, FN : {self.matrix[0, 1]}')
+from BinaryConfusionMatrix import BinaryConfusionMatrix
 
 
 class Sequential:
-    loss = BinaryCrossEntropy()
     confusion_matrix = BinaryConfusionMatrix()
 
     def __init__(self):
@@ -31,17 +12,10 @@ class Sequential:
     def add(self, layer):
         self.layers.append(layer)
 
-    def predict(self, input_data):
-        samples = len(input_data)
-        result = []
-
-        for i in range(samples):
-            output = input_data[i]
-            for layer in self.layers:
-                output = layer.forward(output)
-            result.append(output)
-
-        return np.array(result)
+    def predict(self, x):
+        for layer in self.layers:
+            x = layer.forward(x)
+        return x
 
     def batch_generator(self, x, y, batch_size):
         samples = len(x)
@@ -54,27 +28,52 @@ class Sequential:
         for i in range(0, samples, batch_size):
             yield x[i:i + batch_size], y[i:i + batch_size]
 
-    def fit(self, x_train, y_train, epochs=8, batch_size=32, learning_rate=.001, decay=.001):
-        samples = len(x_train)
-        history = {'loss': [], 'accuracy': []}
+    def evaluate(self, x_test, y_test):
+        metric = BinaryConfusionMatrix()
+        output = self.predict(x_test)
+        loss = self.loss(output, y_test)
+        metric.update(output, y_test)
+        return loss, self.confusion_matrix.get_accuracy()
+
+    def fit(self, training, val=None, epochs=8, batch_size=32, decay=.001):
+        x_train, y_train = training
+
+        history = {'loss': [], 'accuracy': [], 'val_loss': [], 'val_accuracy': []}
         for i in range(epochs):
             err = 0
             for x, y in self.batch_generator(x_train, y_train, batch_size):
-                output = x
+                logit = x
                 for layer in self.layers:
-                    output = layer.forward(output)
+                    logit = layer.forward(logit)
 
-                err += self.loss(output, y)
+                err += self.loss(logit, y)
 
-                error = self.loss(output, y, True)
+                error = self.loss(logit, y, derivative=True)
+
                 for layer in reversed(self.layers):
-                    error = layer.backward(error, learning_rate)
+                    error = layer.backward(error, self.learning_rate)
 
-                self.confusion_matrix.update(output, y)
-            err /= samples
-            learning_rate *= (1 - decay)
-            history['loss'].append(np.mean(err))
+                self.confusion_matrix.update(logit, y)
+
+            if val is not None:
+                x_val, y_val = val
+                val_loss, val_acc = self.evaluate(x_val, y_val)
+                history['val_loss'].append(val_loss)
+                history['val_accuracy'].append(val_acc)
+
+            self.learning_rate *= (1 - decay)
+            history['loss'].append(err)
             history['accuracy'].append(self.confusion_matrix.get_accuracy())
-            print(f'epoch {i + 1}')
-            print(f'lr :{learning_rate:0.5f}, {epochs}, loss :{np.mean(err):0.4f}, acc :{self.confusion_matrix.get_accuracy():0.4f}')
+            print(f'epoch {i + 1}/{epochs}')
+            print(f'lr :{self.learning_rate:0.5f}, loss :{err:0.4f}, acc :{self.confusion_matrix.get_accuracy():0.4f}')
         return history
+
+    def compile(self, loss, lr=0.001):
+        self.loss = loss
+        self.learning_rate = lr
+
+        for i, layer in enumerate(self.layers):
+            if i != 0:
+                layer.compile(self.layers[i - 1].output_shape)
+            else:
+                layer.compile()

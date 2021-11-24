@@ -1,10 +1,11 @@
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib import pyplot as plt
 
 from Sequential import Sequential
 from binary_cross_entropy import BinaryCrossEntropy
 from dense import Dense
+from lstm import LSTMLayer
 from sigmoid import Sigmoid
 from tanh import Tanh
 from text_vetorization import TextVectorization
@@ -20,7 +21,7 @@ if __name__ == '__main__':
     x = encoder(x)
     y = np.array([1 if label == 'positive' else 0 for label in y])
 
-    x = x.reshape(x.shape[0], x.shape[1])
+    x = x.reshape(x.shape[0], x.shape[1], 1)
     y = y.reshape(y.shape[0], 1)
 
     train = .8
@@ -32,8 +33,9 @@ if __name__ == '__main__':
     x_train = x_train[indices]
     y_train = y_train[indices]
 
+
     model = Sequential()
-    model.add(Dense(64, input_shape=(32,)))
+    model.add(LSTMLayer(8, input_shape=(32, 1)))
     model.add(Tanh())
     model.add(Dense(32))
     model.add(Tanh())
