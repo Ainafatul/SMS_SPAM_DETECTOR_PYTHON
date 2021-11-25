@@ -11,6 +11,7 @@ class Dense(Layer):
         self.output_shape = (units,)
         self.weights = None
         self.bias = None
+        self.unit = units
 
         if input_shape is not None:
             self.compile(input_shape)
@@ -24,13 +25,13 @@ class Dense(Layer):
 
         weights_error = np.dot(self.input.T, output_error)
 
-        self.weights -= gradient_clip(weights_error, 1) * learning_rate
+        self.weights -= weights_error / output_error.shape[0] * learning_rate
         self.bias -= np.sum(output_error) * learning_rate
         return input_error
 
     def compile(self, input_shape):
         self.input_shape = input_shape[-1]
-        self.weights = np.random.randn(self.input_shape, self.output_shape[0])
+        self.weights = np.random.randn(self.input_shape, self.output_shape[0]) * np.sqrt(1 / self.input_shape + self.unit)
         self.bias = np.random.randn(self.output_shape[0])
 
 

@@ -47,13 +47,15 @@ class Sequential:
             for x, y in self.batch_generator(x_train, y_train, batch_size):
                 logit = x
                 for layer in self.layers:
+                    print(logit.shape)
                     logit = layer.forward(logit)
 
                 err += self.loss(logit, y)
 
-                error = self.loss(logit, y, derivative=True) / y.shape[0]
-
+                error = self.loss(logit, y, derivative=True)
+                print("Backward")
                 for layer in reversed(self.layers):
+                    print(error.shape)
                     error = layer.backward(error, self.learning_rate)
 
                 self.confusion_matrix.update(logit, y)
@@ -71,12 +73,11 @@ class Sequential:
             history['accuracy'].append(self.confusion_matrix.get_accuracy())
             print(f'epoch {i + 1}/{epochs} - time:{round((time.time_ns() - start) / 1e+6)}ms')
             print(f'lr :{self.learning_rate:0.5f}, loss :{err:0.4f}, acc :{self.confusion_matrix.get_accuracy():0.4f}')
-            print(f'TP :{self.confusion_matrix.matrix[1, 1]}, TN :{self.confusion_matrix.matrix[0, 0]}, FP :{self.confusion_matrix.matrix[1, 0]}, FN :{self.confusion_matrix.matrix[0, 1]}')
+            print(
+                f'TP :{self.confusion_matrix.matrix[1, 1]}, TN :{self.confusion_matrix.matrix[0, 0]}, FP :{self.confusion_matrix.matrix[1, 0]}, FN :{self.confusion_matrix.matrix[0, 1]}')
             self.confusion_matrix.reset()
         return history
 
     def compile(self, loss, lr=0.001):
         self.loss = loss
         self.learning_rate = lr
-
-

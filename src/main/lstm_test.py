@@ -33,6 +33,11 @@ if __name__ == '__main__':
     x_train = x_train[indices]
     y_train = y_train[indices]
 
+    indices = np.arange(len(x_train))
+    np.random.shuffle(indices)
+    x_train = x_train[indices]
+    y_train = y_train[indices]
+
     model = Sequential()
     model.add(LSTMLayer(32, input_shape=(32, 8), return_sequence=True))
     model.add(LSTMLayer(16, input_shape=(16, 32), return_sequence=False))

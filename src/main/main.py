@@ -1,159 +1,216 @@
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+
+from Sequential import Sequential
+from binary_cross_entropy import BinaryCrossEntropy
+from dense import Dense, gradient_clip
+from mean_squared_error import MeanSquaredError
+from sigmoid import Sigmoid
+from tanh import Tanh
+from text_vetorization import TextVectorization
 
 
-''' An LSTM '''
 class LSTM:
+
     def sigmoid(self, x):
-        return (1/(1+np.exp(-x)))
+        x = np.clip(x, -500, 500)
+        return 1 / (1 + np.exp(-x))
 
-    def sigmoid_derivative(self, x):
-        return (x*(1-x))
+    def __init__(self, unit, input_shape, return_sequence=False):
+        self.return_sequence = return_sequence
+        self.time, self.features = input_shape
+        self.unit = unit
 
-    def tanh_derivative(self, x):
-        return (1-(np.tanh(x))**2)
+        self.W_i = np.random.randn(self.features, self.unit) * np.sqrt(1 / self.features + self.unit)
+        self.W_f = np.random.randn(self.features, self.unit) * np.sqrt(1 / self.features + self.unit)
+        self.W_a = np.random.randn(self.features, self.unit) * np.sqrt(1 / self.features + self.unit)
+        self.W_o = np.random.randn(self.features, self.unit) * np.sqrt(1 / self.features + self.unit)
 
-    def __init__(self, input_dim, output_dim):
+        self.U_i = np.random.randn(self.unit, self.unit) * np.sqrt(1 / self.features + self.unit)
+        self.U_f = np.random.randn(self.unit, self.unit) * np.sqrt(1 / self.features + self.unit)
+        self.U_a = np.random.randn(self.unit, self.unit) * np.sqrt(1 / self.features + self.unit)
+        self.U_o = np.random.randn(self.unit, self.unit) * np.sqrt(1 / self.features + self.unit)
 
-        self.U_i = np.random.uniform(-0.1, 0.1, size=(input_dim, output_dim))
-        self.U_f = np.random.uniform(-0.1, 0.1, size=(input_dim, output_dim))
-        self.U_o = np.random.uniform(-0.1, 0.1, size=(input_dim, output_dim))
-        self.U_g = np.random.uniform(-0.1, 0.1, size=(input_dim, output_dim))
-        self.W_i = np.random.uniform(-0.1, 0.1, size=(output_dim, output_dim))
-        self.W_f = np.random.uniform(-0.1, 0.1, size=(output_dim, output_dim))
-        self.W_o = np.random.uniform(-0.1, 0.1, size=(output_dim, output_dim))
-        self.W_g = np.random.uniform(-0.1, 0.1, size=(output_dim, output_dim))
+        self.B_a = np.zeros((1, self.unit))
+        self.B_i = np.zeros((1, self.unit))
+        self.B_f = np.zeros((1, self.unit))
+        self.B_o = np.zeros((1, self.unit))
 
-        self.cell_state = np.zeros((1, output_dim))
-        self.output_state = np.zeros((1, output_dim))
-
-        # caching for backpropagation
-        self.input_gates = list()
-        self.forget_gates = list()
-        self.output_gates = list()
-        self.gs = list()
-        self.cell_states = list()
-        self.output_states = list()
-
-        # caching for backpropagation
-        self.del_output_states = list()
-        self.del_cell_states = list()
-        self.del_gs = list()
-        self.del_input_gates = list()
-        self.del_forget_gates = list()
-        self.del_output_gates = list()
+    def __gate(self, x, w, b):
+        return np.dot(x, w) + b
 
     def forward(self, x):
-        input_gate = self.sigmoid((x @ self.U_i)+(self.output_state @ self.W_i)) # a short form for np.dot()
-        # input_gate = self.sigmoid(np.dot(x, self.U_i) + np.dot(self.output_state, self.W_i))
-        forget_gate = self.sigmoid(np.dot(x, self.U_f) + np.dot(self.output_state, self.W_f))
-        output_gate = self.sigmoid(np.dot(x, self.U_o) + np.dot(self.output_state, self.W_o))
-        g = np.tanh(np.dot(x, self.U_g) + np.dot(self.output_state, self.W_g))
-        self.cell_state = self.cell_state*forget_gate + g*input_gate
-        self.output_state = np.tanh(self.cell_state)*output_gate
+        self.batch_size, time, features = x.shape
+        pri
+        assert features == self.features, "Input shape does not match"
+        assert time == self.time, "Input shape does not match"
 
-        self.input_gates.append(input_gate)
-        self.forget_gates.append(forget_gate)
-        self.output_gates.append(output_gate)
-        self.gs.append(g)
-        self.cell_states.append(self.cell_state)
-        self.output_states.append(self.output_state)
+        self.x = np.zeros((self.time, self.batch_size, self.features))
 
-    def backward(self, x, y, seq_length, lr):
-        timestep_error = 0
-        future_del_cell_state = 0
+        self.a = np.zeros((self.time, self.batch_size, self.unit))
+        self.i = np.zeros((self.time, self.batch_size, self.unit))
+        self.f = np.zeros((self.time, self.batch_size, self.unit))
+        self.o = np.zeros((self.time, self.batch_size, self.unit))
 
-        for a in range(seq_length):
-            if a == 0:
-                future_forget_gate = np.zeros_like(self.forget_gates[0])
+        self.state = np.zeros((self.batch_size, self.time, self.unit))
+        self.output = np.zeros((self.batch_size, self.time, self.unit))
+
+        for t in range(self.time):
+            self.x[t] = x[:, t]
+
+            self.a[t] = np.tanh(np.dot(x[:, t], self.W_a) + np.dot(self.output[:, t - 1], self.U_a) + self.B_a)
+            self.i[t] = self.sigmoid(np.dot(x[:, t], self.W_i) + np.dot(self.output[:, t - 1], self.U_i) + self.B_i)
+            self.f[t] = self.sigmoid(np.dot(x[:, t], self.W_f) + np.dot(self.output[:, t - 1], self.U_f) + self.B_f)
+            self.o[t] = self.sigmoid(np.dot(x[:, t], self.W_o) + np.dot(self.output[:, t - 1], self.U_o) + self.B_o)
+
+            self.state[:, t] = (self.a[t] * self.i[t]) + (self.f[t] * self.state[:, t - 1])
+            self.output[:, t] = np.tanh(self.state[:, t]) * (self.o[t])
+
+        # print('\n\n\n')
+        if self.return_sequence:
+            return self.output
+        return self.output[:, -1]
+
+    def backward(self, loss, learning_rate):
+        dWa = np.zeros_like(self.W_a)
+        dWi = np.zeros_like(self.W_i)
+        dWf = np.zeros_like(self.W_f)
+        dWo = np.zeros_like(self.W_o)
+
+        dUa = np.zeros_like(self.U_a)
+        dUi = np.zeros_like(self.U_i)
+        dUf = np.zeros_like(self.U_f)
+        dUo = np.zeros_like(self.U_o)
+
+        dBa = np.zeros_like(self.B_a)
+        dBi = np.zeros_like(self.B_i)
+        dBf = np.zeros_like(self.B_f)
+        dBo = np.zeros_like(self.B_o)
+
+        d_output_next = np.zeros_like(self.state[:, 0])
+        error = loss
+        for t in reversed(range(self.time)):
+            if loss.ndim == 3:
+                error = loss[:, t, :]
+                pass
+            if t == self.time - 1:
+                state_next = np.zeros_like(self.state[:, 0])
+                f_next = np.zeros_like(self.f[0])
             else:
-                future_forget_gate = self.forget_gates[seq_length-a]
-            if a == seq_length:
-                prev_cell_state = np.zeros_like(self.cell_states[0])
+                state_next = self.state[:, t + 1]
+                f_next = self.f[t + 1]
+            if t == 0:
+                prev_state = np.zeros_like(self.state[:, 0])
             else:
-                prev_cell_state = self.cell_states[seq_length-a-2]
-            error = self.output_states[seq_length-a-1] - y[seq_length-a-1]
-            del_output_state = error + timestep_error
-            del_cell_state = del_output_state*self.output_gates[seq_length-a-1]*self.tanh_derivative(self.cell_states[seq_length-a-1]) + future_del_cell_state*future_forget_gate
-            del_g = del_cell_state*self.input_gates[seq_length-a-1]*self.tanh_derivative(self.gs[seq_length-a-1])
-            # del_g = del_cell_state*self.input_gates[seq_length-a-1]*(1-(self.gs[seq_length-a-1])**2)
-            del_input_gate = del_cell_state*self.gs[seq_length-a-1]*self.sigmoid_derivative(self.input_gates[seq_length-a-1])
-            del_forget_gate = del_cell_state*prev_cell_state*self.sigmoid_derivative(self.forget_gates[seq_length-a-1])
-            del_output_gate = del_output_state*np.tanh(self.cell_states[seq_length-a-1])*self.sigmoid_derivative(self.output_gates[seq_length-a-1])
+                prev_state = self.state[:, t - 1]
 
-            timestep_error = (np.dot(self.W_i, del_input_gate.T) + np.dot(self.W_f, del_forget_gate.T) + np.dot(self.W_o, del_output_gate.T) + np.dot(self.W_g, del_g.T)).T
-            future_del_cell_state = del_cell_state
+            if t < self.time - 1:
+                dUa += np.mean(d_a * self.output[:, t], axis=0, keepdims=True)
+                dUi += np.mean(d_i * self.output[:, t], axis=0, keepdims=True)
+                dUf += np.mean(d_f * self.output[:, t], axis=0, keepdims=True)
+                dUo += np.mean(d_o * self.output[:, t], axis=0, keepdims=True)
 
-            self.del_output_states.append(del_output_state)
-            self.del_cell_states.append(del_cell_state)
-            self.del_gs.append(del_g)
-            self.del_input_gates.append(del_input_gate)
-            self.del_forget_gates.append(del_forget_gate)
-            self.del_output_gates.append(del_output_gate)
+            d_out = error + d_output_next
+            d_state = d_out * self.o[t] * (1 - np.tanh(self.state[:, t]) ** 2) + state_next * f_next
+            d_a = d_state * (self.i[t]) * (1 - (self.a[t] ** 2))
+            d_i = d_state * (self.a[t]) * (self.i[t]) * (1 - self.i[t])
+            d_f = d_state * prev_state * self.f[t] * (1 - self.f[t])
+            d_o = d_out * (np.tanh(self.state[:, t])) * (self.o[t]) * (1 - self.o[t])
 
-        #UPDATE WEIGHTS
-        self.U_i -= np.dot(x.T, np.flip(np.array(self.del_input_gates).reshape((len(self.del_input_gates), -1)), axis=0))*lr
-        self.U_f -= np.dot(x.T, np.flip(np.array(self.del_forget_gates).reshape((len(self.del_forget_gates), -1)), axis=0))*lr
-        self.U_o -= np.dot(x.T, np.flip(np.array(self.del_output_gates).reshape((len(self.del_output_gates), -1)), axis=0))*lr
-        self.U_g -= np.dot(x.T, np.flip(np.array(self.del_gs).reshape((len(self.del_gs), -1)), axis=0))*lr
+            print('d_a', d_a.shape)
+            print('x_t', x[t].shape)
 
-        if self.output_states[:-1]:
-            reshaped_output_states = np.array(self.output_states[:-1]).reshape((len(self.output_states[:-1]),-1)).T
-            self.W_i -= np.dot(reshaped_output_states, np.flip(np.atleast_2d(np.squeeze(self.del_input_gates[1:])), axis=0))*lr
-            self.W_f -= np.dot(reshaped_output_states, np.flip(np.atleast_2d(np.squeeze(self.del_forget_gates[1:])), axis=0))*lr
-            self.W_o -= np.dot(reshaped_output_states, np.flip(np.atleast_2d(np.squeeze(self.del_output_gates[1:])), axis=0))*lr
-            self.W_g -= np.dot(reshaped_output_states, np.flip(np.atleast_2d(np.squeeze(self.del_output_gates[1:])), axis=0))*lr
+            if not self.return_sequence:
+                dWa += (d_a * self.x[t]).mean(axis=0, keepdims=True).T
+                dWi += (d_i * self.x[t]).mean(axis=0, keepdims=True).T
+                dWf += (d_f * self.x[t]).mean(axis=0, keepdims=True).T
+                dWo += (d_o * self.x[t]).mean(axis=0, keepdims=True).T
+            else:
+                dWa += np.dot(d_a, self.W_a.T).mean(axis=0, keepdims=True).T
+                dWi += np.dot(d_i, self.W_i.T).mean(axis=0, keepdims=True).T
+                dWf += np.dot(d_f, self.W_f.T).mean(axis=0, keepdims=True).T
+                dWo += np.dot(d_o, self.W_o.T).mean(axis=0, keepdims=True).T
 
-    def reset(self):
-        self.input_gates = list()
-        self.forget_gates = list()
-        self.output_gates = list()
-        self.gs = list()
-        self.cell_states = list()
-        self.output_states = list()
+            dBa += d_a.mean(axis=0)
+            dBi += d_i.mean(axis=0)
+            dBf += d_f.mean(axis=0)
+            dBo += d_o.mean(axis=0)
 
-        self.del_output_states = list()
-        self.del_cell_states = list()
-        self.del_gs = list()
-        self.del_input_gates = list()
-        self.del_forget_gates = list()
-        self.del_output_gates = list()
+            d_output_next = (d_a.dot(self.U_a.T)) + (d_i.dot(self.U_i.T)) + (d_f.dot(self.U_f.T)) + (d_o.dot(self.U_o.T))
 
-        self.cell_state = self.cell_state*0
-        self.output_state = self.output_state*0
+        self.W_a -= learning_rate * dWa
+        self.W_i -= learning_rate * dWi
+        self.W_f -= learning_rate * dWf
+        self.W_o -= learning_rate * dWo
 
-    def train(self, x, y, seq_length, iterations, lr):
-        length = len(x)
-        for a in range(iterations):
-            print ('iteration {0}'.format(a))
-            for b in range(0, length, seq_length):
-                if b == seq_length:
-                    break
-                for c in range(b, seq_length):
-                    self.forward(x[c])
-                self.backward(x[c-seq_length+1:c+1], y[c-seq_length+1:c+1], seq_length, lr)
-                self.reset()
+        self.U_a -= learning_rate * dUa
+        self.U_i -= learning_rate * dUi
+        self.U_f -= learning_rate * dUf
+        self.U_o -= learning_rate * dUo
 
-        #BETTER WAY
-        # for a in range(iterations):
-        #     for (x, y) in data:
-        #         seq_length = len(x)
-        #         for i in seq_length:
-        #             self.forward(x[i])
-        #         self.backward(x, y, seq_length, lr)
-        #         self.reset_lists()
+        # self.W_a -= learning_rate * gradient_clip(dWa, 1)
+        # self.W_i -= learning_rate * gradient_clip(dWi, 1)
+        # self.W_f -= learning_rate * gradient_clip(dWf, 1)
+        # self.W_o -= learning_rate * gradient_clip(dWo, 1)
+        #
+        # self.U_a -= learning_rate * gradient_clip(dUa, 1)
+        # self.U_i -= learning_rate * gradient_clip(dUi, 1)
+        # self.U_f -= learning_rate * gradient_clip(dUf, 1)
+        # self.U_o -= learning_rate * gradient_clip(dUo, 1)
+
+        self.B_a -= learning_rate * dBa
+        self.B_i -= learning_rate * dBi
+        self.B_f -= learning_rate * dBf
+        self.B_o -= learning_rate * dBo
+
+        return error
 
 
+if __name__ == '__main__':
+    dataset = pd.read_csv('../res/imdb.csv')
+    x = dataset.iloc[:, 0].values
+    y = dataset.iloc[:, -1].values
 
-    def run(self, x):
-        output = list()
-        for row in x:
-            input_gate = self.sigmoid(np.dot(row, self.U_i) + np.dot(self.output_state, self.W_i))
-            forget_gate = self.sigmoid(np.dot(row, self.U_f) + np.dot(self.output_state, self.W_f))
-            output_gate = self.sigmoid(np.dot(row, self.U_o) + np.dot(self.output_state, self.W_o))
-            g = np.tanh(np.dot(row, self.U_g) + np.dot(self.output_state, self.W_g))
-            self.cell_state = self.cell_state*forget_gate + g*input_gate
-            self.output_state = np.tanh(self.cell_state)*output_gate
-            output.append(self.output_state)
-        self.reset()
-        return output
+    encoder = TextVectorization(1024, 32)
+    encoder.fit(x)
 
+    x = encoder(x)
+    y = np.array([1 if label == 'positive' else 0 for label in y])
+
+    indices = np.arange(len(x))
+    np.random.shuffle(indices)
+    x = x[indices]
+    y = y[indices]
+
+    x = x.reshape(x.shape[0], x.shape[1], 1)[:128] / np.max(x)
+    x = x * np.random.uniform(-1, 1, (16,))
+    y = y.reshape(y.shape[0], 1)[:128]
+
+    # x = np.array([
+    #     [[1], [2]],
+    #     [[1], [1]],
+    #     [[0], [1]],
+    #     [[2], [2]]
+    # ]) * np.random.uniform(-1, 1, (8,))
+    # y = np.array([[1], [0], [1], [0]])
+
+    model = Sequential()
+    model.add(LSTM(32, input_shape=(32, 16), return_sequence=False))
+    # model.add(LSTM(32, input_shape=(32, 32)))
+    model.add(Dense(64, input_shape=(32,)))
+    model.add(Tanh())
+    model.add(Dense(1, input_shape=(64,)))
+    model.add(Sigmoid())
+
+    model.compile(loss=BinaryCrossEntropy(), lr=0.01)
+
+    history = model.fit((x, y), epochs=256, batch_size=2)
+    plt.plot(history['loss'], label='loss', color='red')
+    plt.plot(history['val_loss'], label='val_loss', color='green', linestyle='--')
+    plt.legend()
+    plt.show()
+    plt.plot(history['accuracy'], label='accuracy', color='blue')
+    plt.plot(history['val_accuracy'], label='val_accuracy', color='black', linestyle='--')
+    plt.legend()
+    plt.show()
