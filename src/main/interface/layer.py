@@ -22,7 +22,7 @@ class Layer(ABC):
     def input(self):
         raise NotImplementedError
 
-    def forward(self, x):
+    def forward(self, x, training=False):
         return x
 
     def backward(self, output_error, learning_rate):

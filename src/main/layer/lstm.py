@@ -28,7 +28,7 @@ class LSTM:
         self.Bf = np.zeros((1, unit))
         self.Bo = np.zeros((1, unit))
 
-    def forward(self, x):
+    def forward(self, x, training):
         self.input = x
         self.batch = x.shape[0]
 

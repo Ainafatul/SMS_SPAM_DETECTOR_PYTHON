@@ -16,7 +16,7 @@ class Sequential:
 
     def predict(self, x):
         for layer in self.layers:
-            x = layer.forward(x)
+            x = layer.forward(x, training=False)
         return x
 
     def batch_generator(self, x, y, batch_size):
@@ -48,7 +48,7 @@ class Sequential:
                 logit = x
 
                 for layer in self.layers:
-                    logit = layer.forward(logit)
+                    logit = layer.forward(logit, training=True)
 
                 err += self.loss(logit, y)
 

@@ -10,11 +10,11 @@ class Bidirectional_LSTM:
         self.layer_forward = LSTM(unit, input_shape, return_sequences=return_sequences, backprop_sequence=backprop_sequence)
         self.layer_backward = LSTM(unit, input_shape, return_sequences=return_sequences, backprop_sequence=backprop_sequence)
 
-    def forward(self, x):
+    def forward(self, x, training):
         self.input_forward = x
         self.input_reserve = np.flip(x, axis=1)
-        forward = self.layer_forward.forward(self.input_forward)
-        backward = self.layer_backward.forward(self.input_reserve)
+        forward = self.layer_forward.forward(self.input_forward, training)
+        backward = self.layer_backward.forward(self.input_reserve, training)
         return np.concatenate((forward, backward), axis=-1)
 
     def backward(self, d_loss, learning_rate):

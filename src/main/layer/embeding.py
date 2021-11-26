@@ -8,7 +8,7 @@ class Embedding:
         self.embedding_size = embedding_size
         self.embedding = np.random.randn(self.embedding_size)
 
-    def forward(self, x):
+    def forward(self, x, training):
         return x * self.embedding
 
     def backward(self, dout, learning_rate):

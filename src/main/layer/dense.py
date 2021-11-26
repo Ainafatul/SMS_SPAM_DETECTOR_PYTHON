@@ -16,7 +16,7 @@ class Dense(Layer):
         if input_shape is not None:
             self.compile(input_shape)
 
-    def forward(self, x):
+    def forward(self, x, training):
         self.input = x
         return np.dot(x, self.weights) + self.bias
 

@@ -11,7 +11,7 @@ class Activation(Layer):
             return self.backward_activation(x)
         return self.forward_activation(x)
 
-    def forward(self, input_data):
+    def forward(self, input_data, training):
         self.input = input_data
         self.output = self.forward_activation(self.input)
         return self.output
