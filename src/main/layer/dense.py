@@ -25,8 +25,8 @@ class Dense(Layer):
 
         weights_error = np.dot(self.input.T, output_error)
 
-        self.weights -= weights_error / output_error.shape[0] * learning_rate
-        self.bias -= np.sum(output_error) * learning_rate
+        self.weights -= weights_error * learning_rate / self.input.shape[0]
+        self.bias -= np.sum(output_error) * learning_rate/ self.input.shape[0]
         return input_error
 
     def compile(self, input_shape):

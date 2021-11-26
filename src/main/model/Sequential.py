@@ -47,15 +47,15 @@ class Sequential:
             for x, y in self.batch_generator(x_train, y_train, batch_size):
                 logit = x
                 for layer in self.layers:
-                    print(logit.shape)
+                    # print(logit.shape)
                     logit = layer.forward(logit)
 
                 err += self.loss(logit, y)
 
                 error = self.loss(logit, y, derivative=True)
-                print("Backward")
+                # print("Backward")
                 for layer in reversed(self.layers):
-                    print(error.shape)
+                    # print(error.shape)
                     error = layer.backward(error, self.learning_rate)
 
                 self.confusion_matrix.update(logit, y)
@@ -66,7 +66,7 @@ class Sequential:
                 history['val_loss'].append(val_loss)
                 history['val_accuracy'].append(val_acc)
 
-            print(self.predict(np.array([x_train[0]])))
+            # print(self.predict(np.array([x_train[0]])))
 
             self.learning_rate *= (1 - decay)
             history['loss'].append(err)

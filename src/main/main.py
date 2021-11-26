@@ -42,7 +42,6 @@ class LSTM:
 
     def forward(self, x):
         self.batch_size, time, features = x.shape
-        pri
         assert features == self.features, "Input shape does not match"
         assert time == self.time, "Input shape does not match"
 
@@ -59,10 +58,10 @@ class LSTM:
         for t in range(self.time):
             self.x[t] = x[:, t]
 
-            self.a[t] = np.tanh(np.dot(x[:, t], self.W_a) + np.dot(self.output[:, t - 1], self.U_a) + self.B_a)
-            self.i[t] = self.sigmoid(np.dot(x[:, t], self.W_i) + np.dot(self.output[:, t - 1], self.U_i) + self.B_i)
-            self.f[t] = self.sigmoid(np.dot(x[:, t], self.W_f) + np.dot(self.output[:, t - 1], self.U_f) + self.B_f)
-            self.o[t] = self.sigmoid(np.dot(x[:, t], self.W_o) + np.dot(self.output[:, t - 1], self.U_o) + self.B_o)
+            self.a[t] = np.tanh((x[:, t] @ self.W_a) + (self.output[:, t - 1] @ self.U_a) + self.B_a)
+            self.i[t] = self.sigmoid((x[:, t] @ self.W_i) + (self.output[:, t - 1] @ self.U_i) + self.B_i)
+            self.f[t] = self.sigmoid((x[:, t] @ self.W_f) + (self.output[:, t - 1] @ self.U_f) + self.B_f)
+            self.o[t] = self.sigmoid((x[:, t] @ self.W_o) + (self.output[:, t - 1] @ self.U_o) + self.B_o)
 
             self.state[:, t] = (self.a[t] * self.i[t]) + (self.f[t] * self.state[:, t - 1])
             self.output[:, t] = np.tanh(self.state[:, t]) * (self.o[t])
@@ -105,11 +104,11 @@ class LSTM:
             else:
                 prev_state = self.state[:, t - 1]
 
-            if t < self.time - 1:
-                dUa += np.mean(d_a * self.output[:, t], axis=0, keepdims=True)
-                dUi += np.mean(d_i * self.output[:, t], axis=0, keepdims=True)
-                dUf += np.mean(d_f * self.output[:, t], axis=0, keepdims=True)
-                dUo += np.mean(d_o * self.output[:, t], axis=0, keepdims=True)
+            if t != self.time - 1:
+                dUa += np.sum(d_a * self.output[:, t], axis=0)
+                dUi += np.sum(d_i * self.output[:, t], axis=0)
+                dUf += np.sum(d_f * self.output[:, t], axis=0)
+                dUo += np.sum(d_o * self.output[:, t], axis=0)
 
             d_out = error + d_output_next
             d_state = d_out * self.o[t] * (1 - np.tanh(self.state[:, t]) ** 2) + state_next * f_next
@@ -118,51 +117,38 @@ class LSTM:
             d_f = d_state * prev_state * self.f[t] * (1 - self.f[t])
             d_o = d_out * (np.tanh(self.state[:, t])) * (self.o[t]) * (1 - self.o[t])
 
-            print('d_a', d_a.shape)
-            print('x_t', x[t].shape)
-
             if not self.return_sequence:
-                dWa += (d_a * self.x[t]).mean(axis=0, keepdims=True).T
-                dWi += (d_i * self.x[t]).mean(axis=0, keepdims=True).T
-                dWf += (d_f * self.x[t]).mean(axis=0, keepdims=True).T
-                dWo += (d_o * self.x[t]).mean(axis=0, keepdims=True).T
+                dWa += np.dot(self.x[t].T, d_a).mean(axis=0, keepdims=True)
+                dWi += np.dot(self.x[t].T, d_i).mean(axis=0, keepdims=True)
+                dWf += np.dot(self.x[t].T, d_f).mean(axis=0, keepdims=True)
+                dWo += np.dot(self.x[t].T, d_o).mean(axis=0, keepdims=True)
             else:
-                dWa += np.dot(d_a, self.W_a.T).mean(axis=0, keepdims=True).T
-                dWi += np.dot(d_i, self.W_i.T).mean(axis=0, keepdims=True).T
-                dWf += np.dot(d_f, self.W_f.T).mean(axis=0, keepdims=True).T
-                dWo += np.dot(d_o, self.W_o.T).mean(axis=0, keepdims=True).T
+                dWa += np.dot(d_a, self.W_a.T).sum(axis=0, keepdims=True).T
+                dWi += np.dot(d_i, self.W_i.T).sum(axis=0, keepdims=True).T
+                dWf += np.dot(d_f, self.W_f.T).sum(axis=0, keepdims=True).T
+                dWo += np.dot(d_o, self.W_o.T).sum(axis=0, keepdims=True).T
 
-            dBa += d_a.mean(axis=0)
-            dBi += d_i.mean(axis=0)
-            dBf += d_f.mean(axis=0)
-            dBo += d_o.mean(axis=0)
+            dBa += d_a.sum(axis=0)
+            dBi += d_i.sum(axis=0)
+            dBf += d_f.sum(axis=0)
+            dBo += d_o.sum(axis=0)
 
             d_output_next = (d_a.dot(self.U_a.T)) + (d_i.dot(self.U_i.T)) + (d_f.dot(self.U_f.T)) + (d_o.dot(self.U_o.T))
 
-        self.W_a -= learning_rate * dWa
-        self.W_i -= learning_rate * dWi
-        self.W_f -= learning_rate * dWf
-        self.W_o -= learning_rate * dWo
+        self.W_a -= learning_rate * dWa / self.batch_size
+        self.W_i -= learning_rate * dWi / self.batch_size
+        self.W_f -= learning_rate * dWf / self.batch_size
+        self.W_o -= learning_rate * dWo / self.batch_size
 
-        self.U_a -= learning_rate * dUa
-        self.U_i -= learning_rate * dUi
-        self.U_f -= learning_rate * dUf
-        self.U_o -= learning_rate * dUo
+        self.U_a -= learning_rate * dUa / self.batch_size
+        self.U_i -= learning_rate * dUi / self.batch_size
+        self.U_f -= learning_rate * dUf / self.batch_size
+        self.U_o -= learning_rate * dUo / self.batch_size
 
-        # self.W_a -= learning_rate * gradient_clip(dWa, 1)
-        # self.W_i -= learning_rate * gradient_clip(dWi, 1)
-        # self.W_f -= learning_rate * gradient_clip(dWf, 1)
-        # self.W_o -= learning_rate * gradient_clip(dWo, 1)
-        #
-        # self.U_a -= learning_rate * gradient_clip(dUa, 1)
-        # self.U_i -= learning_rate * gradient_clip(dUi, 1)
-        # self.U_f -= learning_rate * gradient_clip(dUf, 1)
-        # self.U_o -= learning_rate * gradient_clip(dUo, 1)
-
-        self.B_a -= learning_rate * dBa
-        self.B_i -= learning_rate * dBi
-        self.B_f -= learning_rate * dBf
-        self.B_o -= learning_rate * dBo
+        self.B_a -= learning_rate * dBa / self.batch_size
+        self.B_i -= learning_rate * dBi / self.batch_size
+        self.B_f -= learning_rate * dBf / self.batch_size
+        self.B_o -= learning_rate * dBo / self.batch_size
 
         return error
 
@@ -183,9 +169,10 @@ if __name__ == '__main__':
     x = x[indices]
     y = y[indices]
 
-    x = x.reshape(x.shape[0], x.shape[1], 1)[:128] / np.max(x)
-    x = x * np.random.uniform(-1, 1, (16,))
-    y = y.reshape(y.shape[0], 1)[:128]
+    x = x.reshape(x.shape[0], x.shape[1], 1)[:32]
+    x = x / np.max(x)
+    # x = x * np.random.uniform(-1, 1, (4,))
+    y = y.reshape(y.shape[0], 1)[:32]
 
     # x = np.array([
     #     [[1], [2]],
@@ -196,16 +183,16 @@ if __name__ == '__main__':
     # y = np.array([[1], [0], [1], [0]])
 
     model = Sequential()
-    model.add(LSTM(32, input_shape=(32, 16), return_sequence=False))
+    model.add(LSTM(128, input_shape=(x.shape[1], x.shape[2]), return_sequence=False))
     # model.add(LSTM(32, input_shape=(32, 32)))
-    model.add(Dense(64, input_shape=(32,)))
+    model.add(Dense(64, input_shape=(128,)))
     model.add(Tanh())
     model.add(Dense(1, input_shape=(64,)))
     model.add(Sigmoid())
 
     model.compile(loss=BinaryCrossEntropy(), lr=0.01)
 
-    history = model.fit((x, y), epochs=256, batch_size=2)
+    history = model.fit((x, y), epochs=1024, batch_size=4)
     plt.plot(history['loss'], label='loss', color='red')
     plt.plot(history['val_loss'], label='val_loss', color='green', linestyle='--')
     plt.legend()
