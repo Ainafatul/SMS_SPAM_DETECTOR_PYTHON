@@ -68,8 +68,10 @@ class Sequential:
             history['accuracy'].append(self.confusion_matrix.get_accuracy())
             print(f'epoch {i + 1}/{epochs} - time:{round((time.time_ns() - start) / 1e+6)}ms')
             print(f'lr :{self.learning_rate:0.5f}, loss :{err:0.4f}, acc :{self.confusion_matrix.get_accuracy():0.4f}')
-            print(
-                f'TP :{self.confusion_matrix.matrix[1, 1]}, TN :{self.confusion_matrix.matrix[0, 0]}, FP :{self.confusion_matrix.matrix[1, 0]}, FN :{self.confusion_matrix.matrix[0, 1]}')
+            print(f'TP :{self.confusion_matrix.matrix[1, 1]},'
+                  f'TN :{self.confusion_matrix.matrix[0, 0]},'
+                  f'FP :{self.confusion_matrix.matrix[1, 0]},'
+                  f'FN :{self.confusion_matrix.matrix[0, 1]}')
             self.confusion_matrix.reset()
         return history
 

@@ -1,3 +1,5 @@
+import copy
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -5,6 +7,7 @@ import pandas as pd
 from Sequential import Sequential
 from binary_cross_entropy import BinaryCrossEntropy
 from dense import Dense, gradient_clip
+from layer import Layer
 from mean_squared_error import MeanSquaredError
 from sigmoid import Sigmoid
 from tanh import Tanh
@@ -14,6 +17,7 @@ np.random.seed(0)
 
 
 def sigmoid(x):
+    np.clip(x, -500, 500, out=x)
     return 1 / (1 + np.exp(-x))
 
 
@@ -129,21 +133,6 @@ class LSTM:
             d_state_next = d_state
             d_output_next = (d_a @ self.Ua) + (d_i @ self.Ui) + (d_f @ self.Uf) + (d_o @ self.Uo)
 
-        dWa = gradient_clip(dWa, 1)
-        dWi = gradient_clip(dWi, 1)
-        dWf = gradient_clip(dWf, 1)
-        dWo = gradient_clip(dWo, 1)
-
-        dUa = gradient_clip(dUa, 1)
-        dUi = gradient_clip(dUi, 1)
-        dUf = gradient_clip(dUf, 1)
-        dUo = gradient_clip(dUo, 1)
-
-        dBa = gradient_clip(dBa, 1)
-        dBi = gradient_clip(dBi, 1)
-        dBf = gradient_clip(dBf, 1)
-        dBo = gradient_clip(dBo, 1)
-
         self.Wa -= dWa * learning_rate
         self.Wi -= dWi * learning_rate
         self.Wf -= dWf * learning_rate
@@ -160,6 +149,29 @@ class LSTM:
         self.Bo -= dBo * learning_rate
 
         return d_output_next
+
+
+class Bidirectional:
+
+    def __init__(self, unit, input_shape):
+        self.unit = unit
+        self.layer_forward = LSTM(unit, input_shape)
+        self.layer_backward = LSTM(unit, input_shape)
+
+    def forward(self, x):
+        self.input_forward = x
+        self.input_reserve = np.flip(x, axis=1)
+
+        forward = self.layer_forward.forward(self.input_forward)
+        backward = self.layer_backward.forward(self.input_reserve)
+        return np.concatenate((forward, backward), axis=1)
+
+    def backward(self, d_loss, learning_rate):
+        d_loss_forward = d_loss[:, :self.unit]
+        d_loss_reserve = d_loss[:, self.unit:]
+
+        self.layer_forward.backward(d_loss_forward, learning_rate)
+        self.layer_backward.backward(d_loss_reserve, learning_rate)
 
 
 if __name__ == '__main__':
@@ -184,16 +196,16 @@ if __name__ == '__main__':
     y = y.reshape(y.shape[0], 1)[:32]
 
     model = Sequential()
-    model.add(LSTM(64, input_shape=(x.shape[1], x.shape[2]), return_sequences=False))
-    # model.add(LSTM(32, input_shape=(32, 32)))
-    model.add(Dense(64, input_shape=(64,)))
+    model.add(Bidirectional(16, input_shape=(x.shape[1], x.shape[2])))
+    # model.add(LSTM(32, input_shape=(x.shape[1], x.shape[2])))
+    model.add(Dense(64, input_shape=(32,)))
     model.add(Tanh())
     model.add(Dense(1, input_shape=(64,)))
     model.add(Sigmoid())
 
     model.compile(loss=BinaryCrossEntropy(), lr=0.001)
 
-    history = model.fit((x, y), epochs=1024, batch_size=2, decay=0.001)
+    history = model.fit((x, y), epochs=1024, batch_size=8, decay=0.001)
     plt.plot(history['loss'], label='loss', color='red')
     plt.plot(history['val_loss'], label='val_loss', color='green', linestyle='--')
     plt.legend()
