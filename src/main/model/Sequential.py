@@ -41,27 +41,27 @@ class Sequential:
         x_train, y_train = training
 
         history = {'loss': [], 'accuracy': [], 'val_loss': [], 'val_accuracy': []}
-        for i in range(epochs):
+        for e in range(epochs):
             err = 0
             start = time.time_ns()
             for x, y in self.batch_generator(x_train, y_train, batch_size):
                 logit = x
+
                 for layer in self.layers:
                     logit = layer.forward(logit)
 
                 err += self.loss(logit, y)
 
                 error = self.loss(logit, y, derivative=True)
-                for layer in reversed(self.layers):
+                for i, layer in enumerate(reversed(self.layers)):
                     error = layer.backward(error, self.learning_rate)
 
                 self.confusion_matrix.update(logit, y)
 
-
             self.learning_rate *= (1 - decay)
             history['loss'].append(err)
             history['accuracy'].append(self.confusion_matrix.get_accuracy())
-            print(f'epoch {i + 1}/{epochs} - time:{round((time.time_ns() - start) / 1e+6)}ms')
+            print(f'epoch {e + 1}/{epochs} - time:{round((time.time_ns() - start) / 1e+6)}ms')
             print(f'lr :{self.learning_rate:0.5f}, loss :{err:0.4f}, acc :{self.confusion_matrix.get_accuracy():0.4f}')
             print(f'TP :{self.confusion_matrix.matrix[1, 1]},'
                   f'TN :{self.confusion_matrix.matrix[0, 0]},'

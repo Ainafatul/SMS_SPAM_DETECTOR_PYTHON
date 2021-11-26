@@ -7,10 +7,11 @@ def sigmoid(x):
 
 
 class LSTM:
-    def __init__(self, unit, input_shape, return_sequences=False):
+    def __init__(self, unit, input_shape, return_sequences=False, backprop_sequence=False):
         self.unit = unit
         self.time, self.feature = input_shape
         self.return_sequences = return_sequences
+        self.backprop_sequence = backprop_sequence
 
         self.Wa = np.random.randn(self.feature, unit)
         self.Wi = np.random.randn(self.feature, unit)
@@ -79,6 +80,7 @@ class LSTM:
         next_f = np.zeros((self.batch, self.unit))
 
         d_output = d_loss
+        d_outputs = np.zeros((self.batch, self.time, self.unit))
         for t in reversed(range(self.time)):
             if t == 0:
                 output_prev = np.zeros((self.batch, self.unit))
@@ -86,9 +88,11 @@ class LSTM:
             else:
                 output_prev = self.output[t - 1]
                 state_prev = self.state[t - 1]
-            # Return Seq False (32,n)
-            # Return Seq True  (32,32,n)
-            d_out = d_output + d_output_next
+
+            if self.return_sequences:
+                d_out = d_outputs[:, t]
+            else:
+                d_out = d_output + d_output_next
             d_state = d_out * self.o[t] * (1 - np.tanh(self.state[t]) ** 2) + (d_state_next * next_f)
 
             d_a = d_state * self.i[t] * (1 - self.a[t] ** 2)
@@ -115,6 +119,7 @@ class LSTM:
             next_f = self.f[t]
             d_state_next = d_state
             d_output_next = (d_a @ self.Ua) + (d_i @ self.Ui) + (d_f @ self.Uf) + (d_o @ self.Uo)
+            d_outputs[:, t] = d_output_next
 
         self.Wa -= dWa * learning_rate
         self.Wi -= dWi * learning_rate
@@ -131,4 +136,6 @@ class LSTM:
         self.Bf -= dBf * learning_rate
         self.Bo -= dBo * learning_rate
 
+        if self.backprop_sequence:
+            return d_outputs
         return d_output_next
