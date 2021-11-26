@@ -10,147 +10,156 @@ from sigmoid import Sigmoid
 from tanh import Tanh
 from text_vetorization import TextVectorization
 
+np.random.seed(0)
+
+
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
+
 
 class LSTM:
-
-    def sigmoid(self, x):
-        x = np.clip(x, -500, 500)
-        return 1 / (1 + np.exp(-x))
-
-    def __init__(self, unit, input_shape, return_sequence=False):
-        self.return_sequence = return_sequence
-        self.time, self.features = input_shape
+    def __init__(self, unit, input_shape, return_sequences=False):
         self.unit = unit
+        self.time, self.feature = input_shape
+        self.return_sequences = return_sequences
 
-        self.W_i = np.random.randn(self.features, self.unit) * np.sqrt(1 / self.features + self.unit)
-        self.W_f = np.random.randn(self.features, self.unit) * np.sqrt(1 / self.features + self.unit)
-        self.W_a = np.random.randn(self.features, self.unit) * np.sqrt(1 / self.features + self.unit)
-        self.W_o = np.random.randn(self.features, self.unit) * np.sqrt(1 / self.features + self.unit)
+        self.Wa = np.random.randn(self.feature, unit)
+        self.Wi = np.random.randn(self.feature, unit)
+        self.Wf = np.random.randn(self.feature, unit)
+        self.Wo = np.random.randn(self.feature, unit)
 
-        self.U_i = np.random.randn(self.unit, self.unit) * np.sqrt(1 / self.features + self.unit)
-        self.U_f = np.random.randn(self.unit, self.unit) * np.sqrt(1 / self.features + self.unit)
-        self.U_a = np.random.randn(self.unit, self.unit) * np.sqrt(1 / self.features + self.unit)
-        self.U_o = np.random.randn(self.unit, self.unit) * np.sqrt(1 / self.features + self.unit)
+        self.Ua = np.random.randn(unit, unit)
+        self.Ui = np.random.randn(unit, unit)
+        self.Uf = np.random.randn(unit, unit)
+        self.Uo = np.random.randn(unit, unit)
 
-        self.B_a = np.zeros((1, self.unit))
-        self.B_i = np.zeros((1, self.unit))
-        self.B_f = np.zeros((1, self.unit))
-        self.B_o = np.zeros((1, self.unit))
-
-    def __gate(self, x, w, b):
-        return np.dot(x, w) + b
+        self.Ba = np.zeros((1, unit))
+        self.Bi = np.zeros((1, unit))
+        self.Bf = np.zeros((1, unit))
+        self.Bo = np.zeros((1, unit))
 
     def forward(self, x):
-        self.batch_size, time, features = x.shape
-        assert features == self.features, "Input shape does not match"
-        assert time == self.time, "Input shape does not match"
+        self.input = x
+        self.batch = x.shape[0]
 
-        self.x = np.zeros((self.time, self.batch_size, self.features))
+        self.a = np.zeros((self.time, self.batch, self.unit))
+        self.i = np.zeros((self.time, self.batch, self.unit))
+        self.f = np.zeros((self.time, self.batch, self.unit))
+        self.o = np.zeros((self.time, self.batch, self.unit))
 
-        self.a = np.zeros((self.time, self.batch_size, self.unit))
-        self.i = np.zeros((self.time, self.batch_size, self.unit))
-        self.f = np.zeros((self.time, self.batch_size, self.unit))
-        self.o = np.zeros((self.time, self.batch_size, self.unit))
+        self.state = np.zeros((self.time, self.batch, self.unit))
+        self.output = np.zeros((self.time, self.batch, self.unit))
 
-        self.state = np.zeros((self.batch_size, self.time, self.unit))
-        self.output = np.zeros((self.batch_size, self.time, self.unit))
+        output_prev = np.zeros((self.batch, self.unit))
+        state_prev = np.zeros((self.batch, self.unit))
 
         for t in range(self.time):
-            self.x[t] = x[:, t]
+            self.a[t] = np.tanh((x[:, t] @ self.Wa) + (output_prev @ self.Ua) + self.Ba)
+            self.i[t] = sigmoid((x[:, t] @ self.Wi) + (output_prev @ self.Ui) + self.Bi)
+            self.f[t] = sigmoid((x[:, t] @ self.Wf) + (output_prev @ self.Uf) + self.Bf)
+            self.o[t] = sigmoid((x[:, t] @ self.Wo) + (output_prev @ self.Uo) + self.Bo)
 
-            self.a[t] = np.tanh((x[:, t] @ self.W_a) + (self.output[:, t - 1] @ self.U_a) + self.B_a)
-            self.i[t] = self.sigmoid((x[:, t] @ self.W_i) + (self.output[:, t - 1] @ self.U_i) + self.B_i)
-            self.f[t] = self.sigmoid((x[:, t] @ self.W_f) + (self.output[:, t - 1] @ self.U_f) + self.B_f)
-            self.o[t] = self.sigmoid((x[:, t] @ self.W_o) + (self.output[:, t - 1] @ self.U_o) + self.B_o)
+            self.state[t] = (self.a[t] * self.i[t]) + (self.f[t] * state_prev)
+            self.output[t] = np.tanh(self.state[t]) * self.o[t]
 
-            self.state[:, t] = (self.a[t] * self.i[t]) + (self.f[t] * self.state[:, t - 1])
-            self.output[:, t] = np.tanh(self.state[:, t]) * (self.o[t])
+            state_prev = self.state[t]
+            output_prev = self.output[t]
 
-        # print('\n\n\n')
-        if self.return_sequence:
-            return self.output
-        return self.output[:, -1]
+        if self.return_sequences:
+            return np.moveaxis(self.output, 0, 1)
+        return self.output[-1]
 
-    def backward(self, loss, learning_rate):
-        dWa = np.zeros_like(self.W_a)
-        dWi = np.zeros_like(self.W_i)
-        dWf = np.zeros_like(self.W_f)
-        dWo = np.zeros_like(self.W_o)
+    def backward(self, d_loss, learning_rate):
+        dWa = np.zeros((self.feature, self.unit))
+        dWi = np.zeros((self.feature, self.unit))
+        dWf = np.zeros((self.feature, self.unit))
+        dWo = np.zeros((self.feature, self.unit))
 
-        dUa = np.zeros_like(self.U_a)
-        dUi = np.zeros_like(self.U_i)
-        dUf = np.zeros_like(self.U_f)
-        dUo = np.zeros_like(self.U_o)
+        dUa = np.zeros((self.unit, self.unit))
+        dUi = np.zeros((self.unit, self.unit))
+        dUf = np.zeros((self.unit, self.unit))
+        dUo = np.zeros((self.unit, self.unit))
 
-        dBa = np.zeros_like(self.B_a)
-        dBi = np.zeros_like(self.B_i)
-        dBf = np.zeros_like(self.B_f)
-        dBo = np.zeros_like(self.B_o)
+        dBa = np.zeros((1, self.unit))
+        dBi = np.zeros((1, self.unit))
+        dBf = np.zeros((1, self.unit))
+        dBo = np.zeros((1, self.unit))
 
-        d_output_next = np.zeros_like(self.state[:, 0])
-        error = loss
+        d_output_next = np.zeros((self.batch, self.unit))
+        d_state_next = np.zeros((self.batch, self.unit))
+        next_f = np.zeros((self.batch, self.unit))
+
+        d_output = d_loss
         for t in reversed(range(self.time)):
-            if loss.ndim == 3:
-                error = loss[:, t, :]
-                pass
-            if t == self.time - 1:
-                state_next = np.zeros_like(self.state[:, 0])
-                f_next = np.zeros_like(self.f[0])
-            else:
-                state_next = self.state[:, t + 1]
-                f_next = self.f[t + 1]
+            # if self.return_sequences:
+            #     d_output = d_loss[:, t]
+
             if t == 0:
-                prev_state = np.zeros_like(self.state[:, 0])
+                output_prev = np.zeros((self.batch, self.unit))
+                state_prev = np.zeros((self.batch, self.unit))
             else:
-                prev_state = self.state[:, t - 1]
+                output_prev = self.output[t - 1]
+                state_prev = self.state[t - 1]
 
-            if t != self.time - 1:
-                dUa += np.sum(d_a * self.output[:, t], axis=0)
-                dUi += np.sum(d_i * self.output[:, t], axis=0)
-                dUf += np.sum(d_f * self.output[:, t], axis=0)
-                dUo += np.sum(d_o * self.output[:, t], axis=0)
+            d_out = d_output + d_output_next
+            d_state = d_out * self.o[t] * (1 - np.tanh(self.state[t]) ** 2) + (d_state_next * next_f)
 
-            d_out = error + d_output_next
-            d_state = d_out * self.o[t] * (1 - np.tanh(self.state[:, t]) ** 2) + state_next * f_next
-            d_a = d_state * (self.i[t]) * (1 - (self.a[t] ** 2))
-            d_i = d_state * (self.a[t]) * (self.i[t]) * (1 - self.i[t])
-            d_f = d_state * prev_state * self.f[t] * (1 - self.f[t])
-            d_o = d_out * (np.tanh(self.state[:, t])) * (self.o[t]) * (1 - self.o[t])
+            d_a = d_state * self.i[t] * (1 - self.a[t] ** 2)
+            d_i = d_state * self.a[t] * self.i[t] * (1 - self.i[t])
+            d_f = d_state * state_prev * self.f[t] * (1 - self.f[t])
+            d_o = d_out * np.tanh(self.state[t]) * self.o[t] * (1 - self.o[t])
 
-            if not self.return_sequence:
-                dWa += np.dot(self.x[t].T, d_a).mean(axis=0, keepdims=True)
-                dWi += np.dot(self.x[t].T, d_i).mean(axis=0, keepdims=True)
-                dWf += np.dot(self.x[t].T, d_f).mean(axis=0, keepdims=True)
-                dWo += np.dot(self.x[t].T, d_o).mean(axis=0, keepdims=True)
-            else:
-                dWa += np.dot(d_a, self.W_a.T).sum(axis=0, keepdims=True).T
-                dWi += np.dot(d_i, self.W_i.T).sum(axis=0, keepdims=True).T
-                dWf += np.dot(d_f, self.W_f.T).sum(axis=0, keepdims=True).T
-                dWo += np.dot(d_o, self.W_o.T).sum(axis=0, keepdims=True).T
+            dWa += (d_a.T @ self.input[:, t]).T
+            dWi += (d_i.T @ self.input[:, t]).T
+            dWf += (d_f.T @ self.input[:, t]).T
+            dWo += (d_o.T @ self.input[:, t]).T
 
-            dBa += d_a.sum(axis=0)
-            dBi += d_i.sum(axis=0)
-            dBf += d_f.sum(axis=0)
-            dBo += d_o.sum(axis=0)
+            dUa += np.sum(d_a * output_prev, axis=0, keepdims=True).T
+            dUi += np.sum(d_i * output_prev, axis=0, keepdims=True).T
+            dUf += np.sum(d_f * output_prev, axis=0, keepdims=True).T
+            dUo += np.sum(d_o * output_prev, axis=0, keepdims=True).T
 
-            d_output_next = (d_a.dot(self.U_a.T)) + (d_i.dot(self.U_i.T)) + (d_f.dot(self.U_f.T)) + (d_o.dot(self.U_o.T))
+            dBa += np.sum(d_a, axis=0)
+            dBi += np.sum(d_i, axis=0)
+            dBf += np.sum(d_f, axis=0)
+            dBo += np.sum(d_o, axis=0)
 
-        self.W_a -= learning_rate * dWa / self.batch_size
-        self.W_i -= learning_rate * dWi / self.batch_size
-        self.W_f -= learning_rate * dWf / self.batch_size
-        self.W_o -= learning_rate * dWo / self.batch_size
+            d_output = np.zeros_like(d_output)
+            next_f = self.f[t]
+            d_state_next = d_state
+            d_output_next = (d_a @ self.Ua) + (d_i @ self.Ui) + (d_f @ self.Uf) + (d_o @ self.Uo)
 
-        self.U_a -= learning_rate * dUa / self.batch_size
-        self.U_i -= learning_rate * dUi / self.batch_size
-        self.U_f -= learning_rate * dUf / self.batch_size
-        self.U_o -= learning_rate * dUo / self.batch_size
+        dWa = gradient_clip(dWa, 1)
+        dWi = gradient_clip(dWi, 1)
+        dWf = gradient_clip(dWf, 1)
+        dWo = gradient_clip(dWo, 1)
 
-        self.B_a -= learning_rate * dBa / self.batch_size
-        self.B_i -= learning_rate * dBi / self.batch_size
-        self.B_f -= learning_rate * dBf / self.batch_size
-        self.B_o -= learning_rate * dBo / self.batch_size
+        dUa = gradient_clip(dUa, 1)
+        dUi = gradient_clip(dUi, 1)
+        dUf = gradient_clip(dUf, 1)
+        dUo = gradient_clip(dUo, 1)
 
-        return error
+        dBa = gradient_clip(dBa, 1)
+        dBi = gradient_clip(dBi, 1)
+        dBf = gradient_clip(dBf, 1)
+        dBo = gradient_clip(dBo, 1)
+
+        self.Wa -= dWa * learning_rate
+        self.Wi -= dWi * learning_rate
+        self.Wf -= dWf * learning_rate
+        self.Wo -= dWo * learning_rate
+
+        self.Ua -= dUa * learning_rate
+        self.Ui -= dUi * learning_rate
+        self.Uf -= dUf * learning_rate
+        self.Uo -= dUo * learning_rate
+
+        self.Ba -= dBa * learning_rate
+        self.Bi -= dBi * learning_rate
+        self.Bf -= dBf * learning_rate
+        self.Bo -= dBo * learning_rate
+
+        return d_output_next
 
 
 if __name__ == '__main__':
@@ -170,29 +179,21 @@ if __name__ == '__main__':
     y = y[indices]
 
     x = x.reshape(x.shape[0], x.shape[1], 1)[:32]
-    x = x / np.max(x)
-    # x = x * np.random.uniform(-1, 1, (4,))
+    # x = x / np.max(x)
+    # x = x * np.random.uniform(-1, 1, (16,))
     y = y.reshape(y.shape[0], 1)[:32]
 
-    # x = np.array([
-    #     [[1], [2]],
-    #     [[1], [1]],
-    #     [[0], [1]],
-    #     [[2], [2]]
-    # ]) * np.random.uniform(-1, 1, (8,))
-    # y = np.array([[1], [0], [1], [0]])
-
     model = Sequential()
-    model.add(LSTM(128, input_shape=(x.shape[1], x.shape[2]), return_sequence=False))
+    model.add(LSTM(64, input_shape=(x.shape[1], x.shape[2]), return_sequences=False))
     # model.add(LSTM(32, input_shape=(32, 32)))
-    model.add(Dense(64, input_shape=(128,)))
+    model.add(Dense(64, input_shape=(64,)))
     model.add(Tanh())
     model.add(Dense(1, input_shape=(64,)))
     model.add(Sigmoid())
 
-    model.compile(loss=BinaryCrossEntropy(), lr=0.01)
+    model.compile(loss=BinaryCrossEntropy(), lr=0.001)
 
-    history = model.fit((x, y), epochs=1024, batch_size=4)
+    history = model.fit((x, y), epochs=1024, batch_size=2, decay=0.001)
     plt.plot(history['loss'], label='loss', color='red')
     plt.plot(history['val_loss'], label='val_loss', color='green', linestyle='--')
     plt.legend()

@@ -22,16 +22,15 @@ class Dense(Layer):
 
     def backward(self, output_error, learning_rate):
         input_error = np.dot(output_error, self.weights.T)
-
         weights_error = np.dot(self.input.T, output_error)
 
-        self.weights -= weights_error * learning_rate / self.input.shape[0]
-        self.bias -= np.sum(output_error) * learning_rate/ self.input.shape[0]
+        self.weights -= weights_error * learning_rate
+        self.bias -= np.sum(output_error) * learning_rate
         return input_error
 
     def compile(self, input_shape):
         self.input_shape = input_shape[-1]
-        self.weights = np.random.randn(self.input_shape, self.output_shape[0]) * np.sqrt(1 / self.input_shape + self.unit)
+        self.weights = np.random.randn(self.input_shape, self.output_shape[0])
         self.bias = np.random.randn(self.output_shape[0])
 
 

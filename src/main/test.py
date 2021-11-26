@@ -33,16 +33,16 @@ if __name__ == '__main__':
     y_train = y_train[indices]
 
     model = Sequential()
-    model.add(Dense(512, input_shape=(32,)))
+    model.add(Dense(64, input_shape=(32,)))
     model.add(Tanh())
-    model.add(Dense(128))
+    model.add(Dense(32, input_shape=(64,)))
     model.add(Tanh())
-    model.add(Dense(1))
+    model.add(Dense(1, input_shape=(32,)))
     model.add(Sigmoid())
 
-    model.compile(loss=BinaryCrossEntropy(), lr=.01)
+    model.compile(loss=BinaryCrossEntropy(), lr=.001)
 
-    history = model.fit((x_train, y_train), val=(x_val, y_val), batch_size=32, epochs=512, decay=0.001)
+    history = model.fit((x_train, y_train), val=(x_val, y_val), batch_size=3, epochs=1024, decay=0.001)
 
     plt.plot(history['loss'], label='loss', color='red')
     plt.plot(history['val_loss'], label='val_loss', color='green', linestyle='--')
