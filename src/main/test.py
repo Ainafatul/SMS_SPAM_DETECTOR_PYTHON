@@ -42,7 +42,7 @@ if __name__ == '__main__':
 
     model.compile(loss=BinaryCrossEntropy(), lr=.001)
 
-    history = model.fit((x_train, y_train), val=(x_val, y_val), batch_size=3, epochs=1024, decay=0.001)
+    history = model.fit((x_train, y_train), val=(x_val, y_val), batch_size=32, epochs=1024, decay=0.001)
 
     plt.plot(history['loss'], label='loss', color='red')
     plt.plot(history['val_loss'], label='val_loss', color='green', linestyle='--')

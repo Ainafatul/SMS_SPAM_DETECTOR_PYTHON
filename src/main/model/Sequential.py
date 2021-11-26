@@ -57,11 +57,6 @@ class Sequential:
 
                 self.confusion_matrix.update(logit, y)
 
-            if val is not None:
-                x_val, y_val = val
-                val_loss, val_acc = self.evaluate(x_val, y_val)
-                history['val_loss'].append(val_loss)
-                history['val_accuracy'].append(val_acc)
 
             self.learning_rate *= (1 - decay)
             history['loss'].append(err)
@@ -72,6 +67,11 @@ class Sequential:
                   f'TN :{self.confusion_matrix.matrix[0, 0]},'
                   f'FP :{self.confusion_matrix.matrix[1, 0]},'
                   f'FN :{self.confusion_matrix.matrix[0, 1]}')
+            if val is not None:
+                x_val, y_val = val
+                val_loss, val_acc = self.evaluate(x_val, y_val)
+                history['val_loss'].append(val_loss)
+                history['val_accuracy'].append(val_acc)
             self.confusion_matrix.reset()
         return history
 
