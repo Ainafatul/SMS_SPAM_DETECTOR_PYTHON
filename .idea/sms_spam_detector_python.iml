@@ -1,7 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <module type="PYTHON_MODULE" version="4">
   <component name="NewModuleRootManager">
-    <content url="file://$MODULE_DIR$" />
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/src/main" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/main/activation" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/main/dataset" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/main/interface" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/main/layer" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/main/loss" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/main/model" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/main/metric" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/main/utils" isTestSource="false" />
+    </content>
     <orderEntry type="jdk" jdkName="Python 3.9 (TF)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
