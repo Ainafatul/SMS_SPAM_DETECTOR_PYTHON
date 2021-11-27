@@ -19,9 +19,12 @@ class Sequential:
             x = layer.forward(x, training=False)
         return x
 
+    # mengatur batch untuk training dan validasi
     def batch_generator(self, x, y, batch_size):
+        # inisialisasi data yang digunakan
         samples = len(x)
 
+        # inisialisasi pemilihan sampel dan data dibuat random
         index = np.arange(samples)
         np.random.shuffle(index)
         x = x[index]
@@ -62,6 +65,7 @@ class Sequential:
             history['loss'].append(err)
             history['accuracy'].append(self.confusion_matrix.get_accuracy())
             print(f'epoch {e + 1}/{epochs} - time:{round((time.time_ns() - start) / 1e+6)}ms')
+            print('Training')
             print(f'lr :{self.learning_rate:0.5f}, loss :{err:0.4f}, acc :{self.confusion_matrix.get_accuracy():0.4f}')
             print(f'TP :{self.confusion_matrix.matrix[1, 1]},'
                   f'TN :{self.confusion_matrix.matrix[0, 0]},'
@@ -72,9 +76,15 @@ class Sequential:
                 val_loss, val_acc = self.evaluate(x_val, y_val)
                 history['val_loss'].append(val_loss)
                 history['val_accuracy'].append(val_acc)
+                print('Validation')
+                print(f'lr_val :{self.learning_rate:0.5f}, loss_val :{err:0.4f}, acc_val :{val_acc:0.4f}')
+                print(f'TP_val :{self.confusion_matrix.matrix[1, 1]},'
+                      f'TN_val :{self.confusion_matrix.matrix[0, 0]},'
+                      f'FP_val :{self.confusion_matrix.matrix[1, 0]},'
+                      f'FN_val :{self.confusion_matrix.matrix[0, 1]}')
             self.confusion_matrix.reset()
         return history
 
-    def compile(self, loss, lr=0.001):
+    def compile(self, loss, lr=0.01):
         self.loss = loss
         self.learning_rate = lr

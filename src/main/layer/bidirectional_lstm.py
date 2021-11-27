@@ -11,7 +11,9 @@ class Bidirectional_LSTM:
         self.layer_backward = LSTM(unit, input_shape, return_sequences=return_sequences, backprop_sequence=backprop_sequence)
 
     def forward(self, x, training):
+        # input forward dimulai dari x0
         self.input_forward = x
+        # input backward dibalik(flip) dimulai dari xt
         self.input_reserve = np.flip(x, axis=1)
         forward = self.layer_forward.forward(self.input_forward, training)
         backward = self.layer_backward.forward(self.input_reserve, training)

@@ -8,21 +8,27 @@ def sigmoid(x):
 
 class LSTM:
     def __init__(self, unit, input_shape, return_sequences=False, backprop_sequence=False):
+        # inisialisasi jumlah unit didalam layer
         self.unit = unit
         self.time, self.feature = input_shape
+        # apakah output dr layer berbentuk sequence/berurutan
         self.return_sequences = return_sequences
+        # apakah deriv o dari layer merupakan sequence
         self.backprop_sequence = backprop_sequence
 
+        # shape berdasarkan input dan unit lstm
         self.Wa = np.random.randn(self.feature, unit)
         self.Wi = np.random.randn(self.feature, unit)
         self.Wf = np.random.randn(self.feature, unit)
         self.Wo = np.random.randn(self.feature, unit)
 
+        # shape berdasarkan unit ht dan unit lstm
         self.Ua = np.random.randn(unit, unit)
         self.Ui = np.random.randn(unit, unit)
         self.Uf = np.random.randn(unit, unit)
         self.Uo = np.random.randn(unit, unit)
 
+        # inisialisasi bobot gates dengan nilai 0 berukuran 1,n_unit
         self.Ba = np.zeros((1, unit))
         self.Bi = np.zeros((1, unit))
         self.Bf = np.zeros((1, unit))
@@ -32,6 +38,7 @@ class LSTM:
         self.input = x
         self.batch = x.shape[0]
 
+        # digunakan inisialisasi memori dari setiap gates dengan ukuran (n_time, n_batch, n_unit)
         self.a = np.zeros((self.time, self.batch, self.unit))
         self.i = np.zeros((self.time, self.batch, self.unit))
         self.f = np.zeros((self.time, self.batch, self.unit))
@@ -40,10 +47,13 @@ class LSTM:
         self.state = np.zeros((self.time, self.batch, self.unit))
         self.output = np.zeros((self.time, self.batch, self.unit))
 
+        # inisialisasi output dan state sebelumnya yg dimana t=0 maka output dan state adalah 0 dengan ukuran (batch, unit)
         output_prev = np.zeros((self.batch, self.unit))
         state_prev = np.zeros((self.batch, self.unit))
 
+        # melakukan propagasi maju sebanyak t
         for t in range(self.time):
+            # simbol @ digunakan untuk mendapatkan hadarman produk (dot) dri  b dan a
             self.a[t] = np.tanh((x[:, t] @ self.Wa) + (output_prev @ self.Ua) + self.Ba)
             self.i[t] = sigmoid((x[:, t] @ self.Wi) + (output_prev @ self.Ui) + self.Bi)
             self.f[t] = sigmoid((x[:, t] @ self.Wf) + (output_prev @ self.Uf) + self.Bf)
@@ -55,8 +65,10 @@ class LSTM:
             state_prev = self.state[t]
             output_prev = self.output[t]
 
+        # jika return sequence = true maka output dari fungsi forward dalam layer lstm adalah kumpulan dari ht
         if self.return_sequences:
             return np.moveaxis(self.output, 0, 1)
+        # jika return sequence = false maka output dari fungsi forward dalam layer lstm adalah kumpulan dari ht terakhir
         return self.output[-1]
 
     def backward(self, d_loss, learning_rate):
